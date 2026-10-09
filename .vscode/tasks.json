@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CPE：安裝本機提交助手相依套件",
+      "type": "process", "command": "npm", "windows": { "command": "npm.cmd" },
+      "args": ["ci", "--prefix", "${workspaceFolder}/tools/vjudge-vscode", "--cache", "${workspaceFolder}/.cpe-vjudge/npm-cache"],
+      "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
+    },
+    {
+      "label": "CPE：登入 VJudge（手動登入後回終端機按 Enter）",
+      "type": "process", "command": "node", "args": ["tools/vjudge-vscode/cli.cjs", "login"],
+      "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
+    },
+    {
+      "label": "CPE：測試目前 C++ 檔案",
+      "type": "process", "command": "node", "args": ["tools/vjudge-vscode/cli.cjs", "test", "--file", "${file}"],
+      "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
+    },
+    {
+      "label": "CPE：查詢題目的可用 C++ 語言",
+      "type": "process", "command": "node", "args": ["tools/vjudge-vscode/cli.cjs", "languages", "--problem", "${input:cpeProblem}"],
+      "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
+    },
+    {
+      "label": "CPE：測試通過後提交目前檔案並等待判定（授權本次提交）",
+      "type": "process", "command": "node",
+      "args": ["tools/vjudge-vscode/cli.cjs", "submit", "--file", "${file}", "--problem", "${input:cpeProblem}", "--language", "${input:cpeLanguage}", "--yes"],
+      "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    { "id": "cpeProblem", "type": "promptString", "description": "VJudge 題號，例如 UVA-100" },
+    { "id": "cpeLanguage", "type": "promptString", "description": "網站 C++ 語言名稱，或能唯一識別的文字；先用查詢語言任務查看" }
+  ]
+}
