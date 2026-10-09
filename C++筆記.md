@@ -1,123 +1,127 @@
 # C++ 筆記
 
-整理本對話中討論的 C++ 問題，包含重點解說、程式範例及常見錯誤。
+記錄 C++ 語法、標準函式庫、演算法與 CPE 解題技巧。
 
-## 更新約定
+## 1. 程式入口與標頭檔
 
-- 後續 C++ 問答會整理到這份筆記，使用繁體中文。
-- 更新前先讀取最新內容，保留你自行新增或修改的文字。
-- 預設追加新主題或補充相關段落；需要修正既有內容時，只修改必要部分。
-
-## 問答筆記
-
-### 1. 在 VS Code 終端機編譯 C++（Windows／PowerShell）
-
-目前電腦可使用 MSYS2 的 `g++`，路徑是 `C:\msys64\ucrt64\bin\g++.exe`。本資料夾的預設編譯工作為「C/C++: g++.exe build active file」；儲存並開啟目標 `.cpp` 後，`Ctrl+Shift+B` 只編譯，`Ctrl+F5` 編譯後執行，`F5` 編譯後除錯。也可以從「Terminal → Run Task」選「CPE Compile and Run」，或在終端機手動編譯。
-
-先儲存程式，並確認終端機位於程式所在資料夾，執行：
-
-```powershell
-g++ -std=c++17 -Wall -Wextra 'VJudge/Sort! Sort!! and Sort!!!.cpp' -o 'sort.exe'
-```
-
-- `-std=c++17`：使用 C++17 語言標準。
-- `-Wall -Wextra`：顯示常見警告，幫助找出可能的問題。
-- 檔名包含空白時，使用引號包住完整檔名。
-- `-o 'sort.exe'`：指定產生的執行檔名稱。
-
-編譯成功後，再執行：
-
-```powershell
-.\sort.exe
-```
-
-`g++` 負責編譯與連結；`.\sort.exe` 才是執行程式。修改程式後要重新編譯，再執行新版。
-
-#### 編譯時選到了設定檔分頁
-
-若訊息是 `Cannot build and debug because the active file is not a C or C++ source file.`，表示目前選取的檔案不是 C／C++ 原始碼。例如停在 `tasks.json` 或 `launch.json` 分頁時執行「build active file」，C/C++ 擴充套件會拒絕編譯並回傳 `exit code: -1`。
-
-先點回要執行的 `.cpp` 分頁並按 `Ctrl+S` 儲存，再按 `Ctrl+Shift+B` 編譯、`Ctrl+F5` 執行或 `F5` 除錯。「active file」指目前選取的檔案，不是所有已開啟的分頁。判斷失敗原因時，應先看終端機上方的第一個錯誤訊息。
-
-#### 程式能編譯，卻沒有執行結果
-
-先區分「產生 `.exe`」與「執行 `.exe`」兩個步驟。僅編譯成功不會自動執行程式。本專案的「CPE Compile and Run」會先編譯，再執行目前 `.cpp` 對應的 `.exe`；執行檔放在該原始檔的資料夾，包含 `VJudge` 子資料夾。要先切回想執行的 `.cpp` 分頁，避免操作到同名的舊檔。
-
-本次 `VJudge/Sort! Sort!! and Sort!!!.cpp` 已實際編譯並執行，結果是 `Sort! Sort!! and Sort!!!`。
-
-#### 常見錯誤：缺少 `main()`
-
-本次程式只有 `#include<bits/stdc++.h>` 與 `using namespace std;`，尚未定義 `main()`。實際編譯時出現 `undefined reference to WinMain`，這次的原因是缺少程式入口，不需要為此改寫成 Windows 視窗程式。
-
-一般 CPE 程式可以從以下骨架開始：
+一般 C++ 程式從 `main()` 開始執行。使用到哪些功能，就引入對應的標頭：
 
 ```cpp
-#include <bits/stdc++.h>
+#include <iostream>   // cin、cout
+#include <vector>     // vector
+#include <algorithm>  // sort
 using namespace std;
 
 int main() {
-    // 在這裡加入輸入、處理與輸出。
+    // 輸入、處理、輸出
     return 0;
 }
 ```
 
-### 2. `bits/stdc++.h` 被標紅時
+`bits/stdc++.h` 是 GCC 的 libstdc++ 提供的便利標頭，能一次引入許多常用標頭，但不屬於標準 C++，不是每個編譯器都支援。
 
-- `bits/stdc++.h` 是 GCC 的 libstdc++ 提供的標頭，不是標準 C++ 標頭，因此不能假設所有編譯器都有它。Microsoft 的 `cl.exe` 通常不提供這個標頭。
-- 編輯器的紅線與實際編譯結果要分別確認：本次程式使用 `g++` 已能成功編譯，並輸出 `Sort! Sort!! and Sort!!!`。
-- VS Code 的程式分析與實際編譯應使用一致的編譯器；本專案已統一指向 MSYS2 UCRT64 的 `g++`。
-- 若希望程式能在不同編譯器上使用，可以按需求引入標準標頭，例如本次只使用輸入輸出功能時，`#include <iostream>` 就足夠。
-- 紅線顯示的錯誤代碼也能幫助判斷來源：`C1083` 是 Microsoft C++ 的編譯錯誤，不是 GCC 的診斷。若目前 `g++` 檢查已通過，而 VS Code 仍顯示先前的 `C1083`，先在 VS Code 執行正確的 `g++` 編譯工作以更新 Problems，必要時重新載入視窗；不要僅因舊診斷仍顯示就修改標頭或關閉錯誤提示。
+## 2. `sort` 與自定義排序
 
-參考：[GCC 標頭文件](https://gcc.gnu.org/onlinedocs/libstdc%2B%2B/manual/using_headers.html)、[VS Code C++ 設定](https://code.visualstudio.com/docs/cpp/customize-cpp-settings)。
+### 基本寫法
 
-### 3. Run 與 Debug 的差別
-
-- **Run**：直接執行程式，查看輸出或輸入測試資料。
-- **Debug**：使用除錯器執行，可以設定斷點、逐行執行並查看變數值，幫助找出解題程式的錯誤。
-- 能正常 Run 不代表 Debug 設定也正確。GCC C++ 的編譯器是 `g++`，除錯器通常使用 GDB；編譯時加上 `-g`，才能保留供除錯器使用的資訊。
-- VS Code 的「Run Code」與 C/C++ 擴充套件的「Run C/C++ File／Debug C++ File」使用不同的設定，不能只靠其中一個成功就判斷另一個已設定完成。
-- 本專案的除錯設定名稱是 `CPE: g++ Run and Debug active file`。開啟並儲存目標 `.cpp` 後，選用此設定：`F5` 開始除錯，`Ctrl+F5` 執行但不啟用除錯功能。若要測試斷點，在程式碼行號左側點一下，再按 `F5`；可用 `F10` 逐行執行、`F5` 繼續。
-
-參考：[VS Code GCC／GDB 教學](https://code.visualstudio.com/docs/cpp/config-mingw)。
-
-#### GDB 是什麼？
-
-GDB 是 GNU Debugger，是用來觀察與控制程式執行的除錯器。`g++` 將 C++ 原始碼編譯成 `.exe`；GDB 執行這個 `.exe`，讓你在指定位置暫停、查看變數與逐行追蹤。VS Code 則提供按鈕與視窗來操作 GDB。
-
-例如：
+`sort` 定義在 `<algorithm>`，會直接修改容器中元素的順序。
 
 ```cpp
-int sum = 0;
-for (int i = 1; i <= 3; i++) {
-    sum += i;
-}
-cout << sum;
+vector<int> arr = {4, 1, 3, 2};
+sort(arr.begin(), arr.end());  // 由小到大：1 2 3 4
 ```
 
-直接執行會得到 `6`；若在 `sum += i;` 設定斷點，除錯器會在執行該行之前停下。第一次停下時 `i` 是 `1`、`sum` 是 `0`，逐行執行後可觀察 `sum` 如何變成 `1`、`3`、`6`。這適合追查迴圈、加總或排序結果不符合預期的原因。
+排序範圍包含第一個位置、不包含第二個位置；`arr.end()` 指向最後一個元素的下一個位置。若使用一般陣列：
 
-目前工具分工：
+```cpp
+int arr[] = {4, 1, 3, 2};
+int n = 4;
+sort(arr, arr + n);
+```
 
-| 工具 | 用途 |
+### 比較函式 `cmp`
+
+自定義排序把比較規則當成第三個參數：
+
+```cpp
+bool cmp(int a, int b) {
+    return a > b;
+}
+
+// 在 main() 裡使用：
+sort(arr.begin(), arr.end(), cmp);  // 由大到小
+```
+
+`cmp(a, b)` 回傳 `true`，代表「依照這個排序規則，a 應該排在 b 前面」。
+
+| 規則 | 回傳條件 |
 | --- | --- |
-| VS Code | 編寫程式，顯示除錯操作介面 |
-| `g++` | 編譯 C++，產生執行檔 |
-| GDB | 控制執行檔、設定斷點、檢查變數 |
+| 由小到大 | `a < b` |
+| 由大到小 | `a > b` |
 
-本機 GDB 已安裝於 `C:\msys64\ucrt64\bin\gdb.exe`。前次修正將編譯工作指向 `g++`，建立 `.vscode/launch.json` 連接 GDB，並使用帶有 `-g` 的編譯工作。已實際驗證程式能在 `main()` 斷點停住。
+傳入的是 `cmp`，讓 `sort` 自己呼叫比較函式。
 
-參考：[GDB 官方介紹](https://sourceware.org/gdb/)。
+### 用 lambda 直接寫規則
 
-#### 編譯器選錯與執行檔被鎖住
+lambda 可以把比較函式直接寫在 `sort` 的呼叫裡：
 
-- 若錯誤視窗顯示 `preLaunchTask 'C/C++: cl.exe build active file'`，並出現 `fatal error C1083` 找不到 `bits/stdc++.h`，表示這次啟動實際用了 Microsoft 編譯器。即使已安裝 GDB，仍需讓預設 C/C++ 編譯工作使用 `g++`，並與 `launch.json` 的 `preLaunchTask` 一致。
-- C/C++ 擴充套件的執行按鈕會使用預設 C/C++ 編譯工作產生或選擇除錯設定；只更改編輯器的標頭設定或新增 GDB 路徑，不能解決選錯編譯工作的問題。
-- 若改完設定後仍沿用舊選項，取消目前的錯誤視窗，執行「Developer: Reload Window」，回到目標 `.cpp`，再使用本專案的 `CPE: g++ Run and Debug active file`。
-- Windows 上，仍在執行的 `.exe` 可能無法被新的編譯結果覆寫。遇到 `cannot open output file ... Permission denied` 時，先確認舊程式是否仍在執行；用 `Shift+F5` 停止除錯，或在執行程式的終端機按 `Ctrl+C` 停止，再重新編譯。
-- 程式停在 `cin` 時可能只是等待輸入；目前的練習程式有輸入與排序，但尚未加入 `cout`，所以輸入完資料後不會顯示排序結果。
+```cpp
+sort(arr.begin(), arr.end(), [](int a, int b) {
+    return a > b;
+});
+```
 
-#### 除錯啟動顯示 `enter program name ... does not exist`
+`[]` 是捕捉列表，這個例子沒有使用外部變數，所以留空；`(int a, int b)` 是要比較的兩個元素，函式本體回傳誰應該排前面。
+
+### 多個排序條件
+
+例如先依分數由大到小，同分時依編號由小到大：
+
+```cpp
+struct Student {
+    int id;
+    int score;
+};
+
+bool cmpStudent(const Student& a, const Student& b) {
+    if (a.score != b.score) {
+        return a.score > b.score;
+    }
+    return a.id < b.id;
+}
+
+// students 是 vector<Student>：
+sort(students.begin(), students.end(), cmpStudent);
+```
+
+寫法順序是：先比較第一條件；只有第一條件相同時，才比較下一條件。`const Student&` 以參考傳入，避免複製，並禁止透過這個參考修改元素。
+
+### 常見錯誤與注意事項
+
+- 比較函式要回傳 `bool`，不要修改正在比較的元素。
+- 不要用 `a <= b` 或 `a >= b`：相等時不能回傳 `true`，也就是 `cmp(a, a)` 必須是 `false`。
+- 規則必須一致且符合嚴格弱序：不能同時認為 a 在 b 前面、b 又在 a 前面；若 a 在 b 前面、b 在 c 前面，a 也必須在 c 前面。比較結果都為 `false` 的等價關係也要符合傳遞性。
+- `sort` 不保證等價元素保持原本的先後順序；需要保留時可使用 `stable_sort`。
+- 比較操作為常數時間時，`sort` 的時間複雜度是 `O(n log n)`。
+- `vector<int> arr(n)` 會建立 n 個值為 `0` 的元素，還需要讀入資料再排序：
+
+```cpp
+int n;
+cin >> n;
+vector<int> arr(n);
+for (int& x : arr) {
+    cin >> x;
+}
+
+sort(arr.begin(), arr.end());
+
+for (int x : arr) {
+    cout << x << ' ';
+}
+cout << '\n';
+```
+
+排序只會改變元素順序；要查看結果，仍需用 `cout` 輸出。
 
 ## 我的補充
 
