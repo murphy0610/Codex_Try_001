@@ -12,7 +12,7 @@
 
 ### 1. 在 VS Code 終端機編譯 C++（Windows／PowerShell）
 
-目前電腦可使用 MSYS2 的 `g++`，路徑是 `C:\msys64\ucrt64\bin\g++.exe`。本資料夾目前沒有 `.vscode/tasks.json` 編譯工作設定，可以先在終端機手動編譯。
+目前電腦可使用 MSYS2 的 `g++`，路徑是 `C:\msys64\ucrt64\bin\g++.exe`。本資料夾已設定 `.vscode/tasks.json` 使用此編譯器；開啟要編譯的 `.cpp` 檔案後，可以按 `Ctrl+Shift+B` 編譯，也可以在終端機手動編譯。
 
 先儲存程式，並確認終端機位於程式所在資料夾，執行：
 
@@ -48,6 +48,15 @@ int main() {
     return 0;
 }
 ```
+
+### 2. `bits/stdc++.h` 被標紅時
+
+- `bits/stdc++.h` 是 GCC 的 libstdc++ 提供的標頭，不是標準 C++ 標頭，因此不能假設所有編譯器都有它。Microsoft 的 `cl.exe` 通常不提供這個標頭。
+- 編輯器的紅線與實際編譯結果要分別確認：本次程式使用 `g++` 已能成功編譯，並輸出 `Sort! Sort!! and Sort!!!`。
+- VS Code 的程式分析與實際編譯應使用一致的編譯器；本專案已統一指向 MSYS2 UCRT64 的 `g++`。
+- 若希望程式能在不同編譯器上使用，可以按需求引入標準標頭，例如本次只使用輸入輸出功能時，`#include <iostream>` 就足夠。
+
+參考：[GCC 標頭文件](https://gcc.gnu.org/onlinedocs/libstdc%2B%2B/manual/using_headers.html)、[VS Code C++ 設定](https://code.visualstudio.com/docs/cpp/customize-cpp-settings)。
 
 ## 我的補充
 
