@@ -74,6 +74,34 @@ int main() {
 
 參考：[VS Code GCC／GDB 教學](https://code.visualstudio.com/docs/cpp/config-mingw)。
 
+#### GDB 是什麼？
+
+GDB 是 GNU Debugger，是用來觀察與控制程式執行的除錯器。`g++` 將 C++ 原始碼編譯成 `.exe`；GDB 執行這個 `.exe`，讓你在指定位置暫停、查看變數與逐行追蹤。VS Code 則提供按鈕與視窗來操作 GDB。
+
+例如：
+
+```cpp
+int sum = 0;
+for (int i = 1; i <= 3; i++) {
+    sum += i;
+}
+cout << sum;
+```
+
+直接執行會得到 `6`；若在 `sum += i;` 設定斷點，除錯器會在執行該行之前停下。第一次停下時 `i` 是 `1`、`sum` 是 `0`，逐行執行後可觀察 `sum` 如何變成 `1`、`3`、`6`。這適合追查迴圈、加總或排序結果不符合預期的原因。
+
+目前工具分工：
+
+| 工具 | 用途 |
+| --- | --- |
+| VS Code | 編寫程式，顯示除錯操作介面 |
+| `g++` | 編譯 C++，產生執行檔 |
+| GDB | 控制執行檔、設定斷點、檢查變數 |
+
+本機 GDB 已安裝於 `C:\msys64\ucrt64\bin\gdb.exe`。前次修正將編譯工作指向 `g++`，建立 `.vscode/launch.json` 連接 GDB，並使用帶有 `-g` 的編譯工作。已實際驗證程式能在 `main()` 斷點停住。
+
+參考：[GDB 官方介紹](https://sourceware.org/gdb/)。
+
 ## 我的補充
 
 你可以在這裡或其他段落自由加入自己的筆記。
