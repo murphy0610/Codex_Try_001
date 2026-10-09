@@ -53,6 +53,10 @@ async function setup(options = {}) {
         status: queries === 1 ? 'Judging' : options.verdict || 'Accepted', processing: queries === 1 }) });
     }
     let body = options.noLanguages ? fixture.replace('GNU C++17', 'Java 17') : fixture;
+    if (options.editorNormalizes) body = body.replace('getValue: () => code', 'getValue: () => code.replace(/\\r\\n?/g, "\\n")');
+    if (options.editorReturnsCrLf) body = body.replace('getValue: () => code', 'getValue: () => code.replace(/\\r\\n?|\\n/g, "\\r\\n")');
+    if (options.corruptEditor) body = body.replace('code = value;', 'code = value.replace("std::cout << 7", "std::cout << 8");');
+    if (options.trimEditor) body = body.replace('code = value;', 'code = value.trimEnd();');
     if (options.navigationLink) body = body.replace('<body>', '<body><nav><a class="nav-link" data-i18n="top.nav.status" href="/status">提交</a></nav>');
     if (options.statusLink) body = body.replace('<body>', '<body><a href="/status">Submit</a>');
     if (options.noProblemSubmit || options.submitDelay) body = body.replace('id="problem-submit"', 'id="problem-submit" hidden');
@@ -77,6 +81,41 @@ test('from hidden browser: opens native form, submits once, follows exact ID fro
     const result = await client.waitForResult(env.page, payload.problem, submission.runId, { interval: 1, attempts: 3, onResult: item => statuses.push(item.verdict) });
     assert.deepEqual(statuses, ['Judging', 'AC']); assert.equal(result.final, true);
     assert.equal(env.submissions.length, 1); assert.equal(env.queries(), 2);
+  } finally { await env.context.close(); }
+});
+test('Windows CRLF is accepted after editor line normalization and sends exactly one private submission', async () => {
+  const env = await setup({ editorNormalizes: true });
+  try {
+    const source = payload.source.replace(/\n/g, '\r\n');
+    const result = await client.submitOnce(env.page, { ...payload, source });
+    assert.equal(result.runId, 5678);
+    assert.deepEqual(env.submissions, [{ source: payload.source, language: '5', open: '0' }]);
+  } finally { await env.context.close(); }
+});
+test('mixed CRLF, LF and CR preserve BOM, tabs, Unicode and final blank lines', async () => {
+  const env = await setup({ editorReturnsCrLf: true });
+  try {
+    const source = '\ufeff// 中文註解\r\n#include <iostream>\nint main(){\r\tstd::cout << 7;\r\n}\r\n\r\n';
+    await client.submitOnce(env.page, { ...payload, source });
+    assert.equal(env.submissions.length, 1);
+    assert.equal(env.submissions[0].source, source.replace(/\r\n?/g, '\n'));
+    assert.ok(env.submissions[0].source.endsWith('\n\n'));
+  } finally { await env.context.close(); }
+});
+test('changed program content still stops before submission or the beforeClick callback', async () => {
+  const env = await setup({ corruptEditor: true });
+  try {
+    let clicked = false;
+    await assert.rejects(client.submitOnce(env.page, { ...payload, beforeClick: async () => { clicked = true; } }), /填入程式不符.*統一換行後/);
+    assert.equal(clicked, false);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('editor removal of trailing whitespace is a real mismatch and is never ignored', async () => {
+  const env = await setup({ trimEditor: true });
+  try {
+    await assert.rejects(client.submitOnce(env.page, { ...payload, source: payload.source + '\t\r\n' }), /填入程式不符/);
+    assert.equal(env.submissions.length, 0);
   } finally { await env.context.close(); }
 });
 test('WA is returned as final WA', async () => {

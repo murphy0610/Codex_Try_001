@@ -170,8 +170,12 @@ async function submitOnce(page, { problem, source, languageQuery, beforeClick = 
     }
     select.value = payload.language;
     select.dispatchEvent(new Event('change', { bubbles: true }));
-    editor.setValue(payload.source); editor.save();
-    if (editor.getValue() !== payload.source) throw new Error('填入程式不符，已停止。');
+    // CodeMirror splits CRLF/CR into lines and normally joins them with LF.
+    // Normalize only line endings; retain every other character and final newline.
+    const source = payload.source.replace(/\r\n?/g, '\n');
+    editor.setValue(source); editor.save();
+    const actual = editor.getValue('\n').replace(/\r\n?/g, '\n');
+    if (actual !== source) throw new Error(`填入程式不符（統一換行後，預期 ${source.length} 字元、讀回 ${actual.length} 字元），已停止。`);
     privacy.click();
   }, { source, language: language.value });
   const button = form.modal.locator('#btn-submit');
