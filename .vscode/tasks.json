@@ -14,7 +14,7 @@
     },
     {
       "label": "CPE：測試目前 C++ 檔案",
-      "type": "process", "command": "node", "args": ["tools/vjudge-vscode/cli.cjs", "test", "--file", "${file}"],
+      "type": "process", "command": "node", "args": ["tools/vjudge-vscode/cli.cjs", "test", "--file", "${file}", "--std", "${input:cpeStandard}"],
       "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
     },
     {
@@ -30,6 +30,7 @@
     }
   ],
   "inputs": [
+    { "id": "cpeStandard", "type": "pickString", "description": "本機測試的 C++ 標準；請配合網站語言。UVA-11332 選 c++11。", "options": ["c++11", "c++14", "c++17", "c++20", "c++23", "c++98", "c++03"], "default": "c++11" },
     { "id": "cpeProblem", "type": "promptString", "description": "VJudge 題號，例如 UVA-100" },
     { "id": "cpeLanguage", "type": "promptString", "description": "網站 C++ 語言名稱，或能唯一識別的文字；先用查詢語言任務查看" }
   ]

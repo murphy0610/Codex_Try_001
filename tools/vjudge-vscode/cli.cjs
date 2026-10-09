@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const readline = require('node:readline/promises');
 const { chromium } = require('playwright-core');
 const client = require('./client.cjs');
-const { runTests } = require('./runner.cjs');
+const { runTests, standardForLanguage } = require('./runner.cjs');
 const core = require('../vjudge-submit/core.js');
 const { createDiagnostic } = require('./diagnostics.cjs');
 
@@ -94,8 +94,8 @@ async function main() {
   }
   if (command === 'test') {
     if (!args.file) throw new Error('請指定 --file 程式檔案。');
-    const tests = await runTests(path.resolve(args.file), args.tests && path.resolve(args.tests));
-    console.log(`本地測試通過 ${tests.passed}/${tests.total}；這不是線上 AC。`);
+    const tests = await runTests(path.resolve(args.file), args.tests && path.resolve(args.tests), args.std);
+    console.log(`本地 ${tests.standard} 測試通過 ${tests.passed}/${tests.total}；這不是線上 AC。`);
     return;
   }
   if (command === 'query') {
@@ -136,10 +136,12 @@ async function main() {
     throw new Error('提交需要 --file、--language 和 --yes（明確授權這次提交）。');
   }
   const file = path.resolve(args.file);
+  const standard = standardForLanguage(args.language, args.std);
+  console.log(`提交前使用 ${standard} 編譯測試；網站語言：${args.language}。`);
   const source = await fs.readFile(file, 'utf8');
   const sourceHash = crypto.createHash('sha256').update(source).digest('hex');
-  const tests = await runTests(file, args.tests && path.resolve(args.tests));
-  console.log(`本地測試通過 ${tests.passed}/${tests.total}；準備提交 ${problem}。`);
+  const tests = await runTests(file, args.tests && path.resolve(args.tests), standard);
+  console.log(`本地 ${tests.standard} 測試通過 ${tests.passed}/${tests.total}；準備提交 ${problem}。`);
   // Reject edits during test execution, so the submitted code is the version that was tested.
   if (await fs.readFile(file, 'utf8') !== source) throw new Error('測試期間程式已修改，請重新執行；未提交。');
   const results = path.join(process.cwd(), '.cpe-vjudge', 'results');
@@ -151,7 +153,10 @@ async function main() {
   try {
     await withBrowser(true, async page => {
       const submission = await client.submitOnce(page, { problem, source, languageQuery: args.language,
-        beforeClick: async language => { record = { ...record, language, state: 'submitting' }; await save(recordPath, record); } });
+        beforeClick: async language => {
+          standardForLanguage(language, standard);
+          record = { ...record, language, state: 'submitting' }; await save(recordPath, record);
+        } });
       record = { ...record, ...submission, state: 'submitted', submittedAt: new Date().toISOString() }; await save(recordPath, record);
       console.log(`已收到提交編號 #${record.runId}；開始查詢，不會重新提交。`);
       const finalResult = await client.waitForResult(page, problem, record.runId, { onResult: async result => {

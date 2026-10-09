@@ -32,10 +32,10 @@ practice/UVA-100/
 
 1. 在 VS Code 開啟題目文件和 `main.cpp`，右邊直接問本機 Codex。
 2. 保存程式與題目的範例測資；每個 `.in` 要有同名 `.out`。
-3. 執行「CPE：測試目前 C++ 檔案」。助手編譯 C++17、實際跑所有已保存的輸入、對照輸出。零測資、編譯失敗、超時或答案不符都不算通過。
+3. 執行「CPE：測試目前 C++ 檔案」，選擇與網站語言一致的標準；例如 UVA-11332 的 `C++11 5.3.0` 選 `c++11`。助手實際編譯、跑所有已保存的輸入、對照輸出。零測資、編譯失敗、超時或答案不符都不算通過。
 4. 第一次可執行「CPE：查詢題目的可用 C++ 語言」，查看網站提供的名稱。
 5. 執行「CPE：測試通過後提交目前檔案並等待判定」，輸入題號和語言名称。執行這個任務就是明確授權當次提交。
-6. 助手會重新測試，確認測試期間程式沒有修改，通過後才送出一次。平常不用手動開啟 VJudge，也不用選擇 `.cpp`。
+6. 助手依提交語言重新測試，例如 `C++11 5.3.0` 使用 `c++11`；確認測試期間程式沒有修改，通過後才送出一次。平常不用手動開啟 VJudge，也不用選擇 `.cpp`。
 7. 判定顯示在 VS Code 終端機，並保存到 `.cpe-vjudge/results/`。此資料夾已忽略 Git，沒有密碼或 Cookie。
 8. 對本機 Codex 說「讀取剛才的判題紀錄，解釋失敗原因」；修改後說「重新測試並提交這個題目」。本機 Codex可以執行下面相同指令，不需你操作工作選單。
 
@@ -48,12 +48,21 @@ practice/UVA-100/
 ```sh
 node tools/vjudge-vscode/cli.cjs login
 node tools/vjudge-vscode/cli.cjs languages --problem UVA-100
-node tools/vjudge-vscode/cli.cjs test --file practice/UVA-100/main.cpp
+node tools/vjudge-vscode/cli.cjs test --file practice/UVA-100/main.cpp --std c++17
 node tools/vjudge-vscode/cli.cjs submit --file practice/UVA-100/main.cpp --problem UVA-100 --language "GNU C++17" --yes
 node tools/vjudge-vscode/cli.cjs query --record .cpe-vjudge/results/這次紀錄.json
 ```
 
 `GNU C++17` 是示例，不表示真實網站必有這個名稱。工具會按網站實際清單匹配；零個或多個匹配就停止，不猜數字編號。
+
+使用者已在 Windows 的 UVA-11332 真實表單查得 `C++ 5.3.0` 與 `C++11 5.3.0`，未提供 C++17。練習這題可使用：
+
+```sh
+node tools/vjudge-vscode/cli.cjs test --file practice/UVA-11332/main.cpp --std c++11
+node tools/vjudge-vscode/cli.cjs submit --file practice/UVA-11332/main.cpp --problem UVA-11332 --language "C++11 5.3.0" --yes
+```
+
+單獨執行 `test` 未指定 `--std` 時預設 `c++11`。提交時則從語言名稱的 C++11、C++17 等明確標準決定，不能把 `5.3.0` 這種編譯器版本當成語言標準；不明確時須另指定 `--std`，而指定值與網站語言矛盾時會停止。測試採用嚴格標準檢查，不符合該標準的語法會編譯失敗。測試紀錄保存實際使用的 `standard`，但本機編譯器版本、函式庫與網站仍可能不同。
 
 ## 失敗時
 
@@ -78,6 +87,6 @@ npm ci --ignore-scripts --cache /tmp/cpe-npm-cache
 npm test
 ```
 
-包含背景 Chromium 原生表單模擬、排除提交紀錄導覽、等待延遲出現的題目按鈕、拒絕不唯一的按鈕、偵測離開題目頁、精確程式與語言送出、保持程式不公開、Judging 到 AC、WA、登入失效、真人驗證、錯誤提交編號、HTTP 失敗、不重送及判題中未完成狀態；另實際編譯 C++ 並跑三組輸入輸出、確認錯誤答案與零測資會失敗。
+包含背景 Chromium 原生表單模擬、排除提交紀錄導覽、等待延遲出現的題目按鈕、拒絕不唯一的按鈕、偵測離開題目頁、精確程式與語言送出、保持程式不公開、Judging 到 AC、WA、登入失效、真人驗證、錯誤提交編號、HTTP 失敗、不重送及判題中未完成狀態；另實際編譯 C++ 並跑三組輸入輸出、確認錯誤答案與零測資會失敗，以及 C++17 語法在 C++11 下會失敗、在 C++17 下可執行。CLI 提交測試也確認不符合 C++11 的程式在開啟瀏覽器之前就停止。
 
-上述自動測試使用雲端 Linux／Chromium 的模擬網站，未使用真人 VJudge 帳號提交。這次按鈕辨識修正、真實 C++ 語言清單及線上判題結果，仍需要 Windows／Edge 本機驗證。模擬 AC 不代表線上 AC。
+上述自動測試使用雲端 Linux／Chromium 的模擬網站，未使用真人 VJudge 帳號提交。使用者已回報 Windows／Edge 的 UVA-11332 語言查詢成功；本次編譯標準修正與線上判題結果仍待本機驗證。模擬 AC 不代表線上 AC。
