@@ -33,6 +33,12 @@ g++ -std=c++17 -Wall -Wextra 'VJudge/Sort! Sort!! and Sort!!!.cpp' -o 'sort.exe'
 
 `g++` 負責編譯與連結；`.\sort.exe` 才是執行程式。修改程式後要重新編譯，再執行新版。
 
+#### 編譯時選到了設定檔分頁
+
+若訊息是 `Cannot build and debug because the active file is not a C or C++ source file.`，表示目前選取的檔案不是 C／C++ 原始碼。例如停在 `tasks.json` 或 `launch.json` 分頁時執行「build active file」，C/C++ 擴充套件會拒絕編譯並回傳 `exit code: -1`。
+
+先點回要執行的 `.cpp` 分頁並按 `Ctrl+S` 儲存，再按 `Ctrl+Shift+B` 編譯、`Ctrl+F5` 執行或 `F5` 除錯。「active file」指目前選取的檔案，不是所有已開啟的分頁。判斷失敗原因時，應先看終端機上方的第一個錯誤訊息。
+
 #### 程式能編譯，卻沒有執行結果
 
 先區分「產生 `.exe`」與「執行 `.exe`」兩個步驟。僅編譯成功不會自動執行程式。本專案的「CPE Compile and Run」會先編譯，再執行目前 `.cpp` 對應的 `.exe`；執行檔放在該原始檔的資料夾，包含 `VJudge` 子資料夾。要先切回想執行的 `.cpp` 分頁，避免操作到同名的舊檔。
@@ -112,10 +118,6 @@ cout << sum;
 - 程式停在 `cin` 時可能只是等待輸入；目前的練習程式有輸入與排序，但尚未加入 `cout`，所以輸入完資料後不會顯示排序結果。
 
 #### 除錯啟動顯示 `enter program name ... does not exist`
-
-`launch.json` 的 `program` 指定要啟動的執行檔。若錯誤包含 `enter program name, for example ...`，表示該次啟動的設定仍含有範本占位文字，並不是在尋找真正的程式。
-
-本專案的設定使用 `${fileDirname}\\${fileBasenameNoExtension}.exe`，會依目前開啟的 `.cpp` 找到同資料夾、同檔名的 `.exe`。先取消錯誤視窗，按 `Ctrl+Shift+D` 開啟「Run and Debug」，在上方下拉選單選 `CPE: g++ Run and Debug active file`，再回到目標 `.cpp` 按 `F5`。若選單尚未顯示此設定，執行「Developer: Reload Window」後再選。
 
 ## 我的補充
 
