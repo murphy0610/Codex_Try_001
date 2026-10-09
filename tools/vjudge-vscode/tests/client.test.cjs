@@ -32,9 +32,11 @@ async function setup(options = {}) {
   const context = await browser.newContext();
   const page = await context.newPage();
   const submissions = [];
+  const navigationPaths = [];
   let queries = 0;
   await page.route('https://vjudge.net/**', async route => {
     const request = route.request(), pathname = new URL(request.url()).pathname;
+    if (request.isNavigationRequest()) navigationPaths.push(pathname);
     if (pathname === '/user/checkLogInStatus') {
       if (options.loginDelay) await new Promise(resolve => setTimeout(resolve, options.loginDelay));
       try { return await route.fulfill({ body: options.loginBody ?? (options.loggedOut ? '0' : '1') }); }
@@ -51,11 +53,18 @@ async function setup(options = {}) {
         status: queries === 1 ? 'Judging' : options.verdict || 'Accepted', processing: queries === 1 }) });
     }
     let body = options.noLanguages ? fixture.replace('GNU C++17', 'Java 17') : fixture;
-    if (options.customSubmit) body = body.replace('<button id="problem-submit">Submit</button>', '<button id="custom-submit">Submit Solution</button>')
+    if (options.navigationLink) body = body.replace('<body>', '<body><nav><a class="nav-link" data-i18n="top.nav.status" href="/status">提交</a></nav>');
+    if (options.statusLink) body = body.replace('<body>', '<body><a href="/status">Submit</a>');
+    if (options.noProblemSubmit || options.submitDelay) body = body.replace('id="problem-submit"', 'id="problem-submit" hidden');
+    if (options.submitDelay) body = body.replace('</script>', `setTimeout(() => { document.getElementById('problem-submit').hidden = false; }, ${options.submitDelay});</script>`);
+    if (options.customSubmit) body = body.replace('<button id="problem-submit">Submit</button>', '<button id="custom-submit"><span data-i18n="button.submit">Submit Solution</span></button>')
       .replace("document.getElementById('problem-submit').onclick", "document.getElementById('custom-submit').onclick");
-    return route.fulfill({ contentType: 'text/html', body });
+    if (options.leavesProblem) body = body.replace("document.getElementById('problem-submit').onclick = () => { const modal = document.getElementById('submitModal'); modal.hidden = false; modal.classList.add('show'); };",
+      "document.getElementById('problem-submit').onclick = () => { location.href = '/status'; };");
+    if (options.ambiguousSubmit) body = body.replace('<body>', '<body><button id="second-submit">提交</button>');
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', body });
   });
-  return { context, page, submissions, queries: () => queries };
+  return { context, page, submissions, navigationPaths, queries: () => queries };
 }
 const payload = { problem: 'UVA-100', source: '#include <iostream>\nint main(){ std::cout << 7; }\n', languageQuery: 'C++17' };
 test('from hidden browser: opens native form, submits once, follows exact ID from Judging to AC', async () => {
@@ -146,13 +155,59 @@ test('language query identifies successful login and completion through progress
     assert.equal(env.submissions.length, 0);
   } finally { await env.context.close(); }
 });
-test('unknown submit control yields structural metadata without a submission', async () => {
-  const env = await setup({ customSubmit: true });
+test('status navigation alone is never clicked and yields structural metadata on the original problem', async () => {
+  const env = await setup({ navigationLink: true, noProblemSubmit: true });
   try {
     let metadata;
-    await assert.rejects(client.openForm(env.page, 'UVA-100', { onSnapshot: value => { metadata = value; } }), /無法唯一識別/);
+    await assert.rejects(client.openForm(env.page, 'UVA-100', { formTimeout: 150, onSnapshot: value => { metadata = value; } }), /沒有找到題目專用提交按鈕/);
     assert.equal(metadata.modalVisible, false);
-    assert.ok(metadata.submitControls.some(item => item.id === 'custom-submit' && item.label === 'Submit Solution'));
+    assert.equal(metadata.pagePath, '/problem/UVA-100');
+    assert.ok(metadata.submitControls.some(item => item.i18n === 'top.nav.status' && item.hrefPath === '/status' && item.inNavigation));
+    assert.deepEqual(env.navigationPaths, ['/problem/UVA-100']);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('problem Submit Solution button is opened while the Chinese status navigation is ignored', async () => {
+  const env = await setup({ navigationLink: true, customSubmit: true });
+  try {
+    const form = await client.openForm(env.page, 'UVA-100');
+    assert.deepEqual(form.languages, [{ value: '5', label: 'GNU C++17' }]);
+    assert.deepEqual(env.navigationPaths, ['/problem/UVA-100']);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('waits for a delayed problem action instead of clicking the immediately available status navigation', async () => {
+  const env = await setup({ navigationLink: true, submitDelay: 200 });
+  try {
+    const form = await client.openForm(env.page, 'UVA-100', { formTimeout: 1500 });
+    assert.equal(form.languages.length, 1);
+    assert.deepEqual(env.navigationPaths, ['/problem/UVA-100']);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('a status link outside the navigation is also excluded by its destination', async () => {
+  const env = await setup({ statusLink: true, noProblemSubmit: true });
+  try {
+    await assert.rejects(client.openForm(env.page, 'UVA-100', { formTimeout: 150 }), /沒有找到題目專用提交按鈕/);
+    assert.deepEqual(env.navigationPaths, ['/problem/UVA-100']);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('an apparent problem button that navigates away fails explicitly without a submission', async () => {
+  const env = await setup({ leavesProblem: true });
+  try {
+    let metadata;
+    await assert.rejects(client.openForm(env.page, 'UVA-100', { formTimeout: 1500, onSnapshot: value => { metadata = value; } }), /點擊後離開原題目頁/);
+    assert.equal(metadata.pagePath, '/status');
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('ambiguous problem actions stop before clicking either button', async () => {
+  const env = await setup({ ambiguousSubmit: true });
+  try {
+    await assert.rejects(client.openForm(env.page, 'UVA-100', { formTimeout: 150 }), /找到多個題目提交按鈕/);
+    assert.deepEqual(env.navigationPaths, ['/problem/UVA-100']);
+    assert.equal(await env.page.locator('#submitModal').isVisible(), false);
     assert.equal(env.submissions.length, 0);
   } finally { await env.context.close(); }
 });
@@ -163,10 +218,12 @@ test('structural metadata omits source, passwords, hidden token values, and URL 
     await env.page.evaluate(() => {
       const password = document.createElement('input'); password.type = 'password'; password.value = 'DO_NOT_INCLUDE';
       const token = document.createElement('input'); token.type = 'hidden'; token.name = 'token'; token.value = 'DO_NOT_INCLUDE';
-      document.body.append(password, token); document.querySelector('textarea').value = 'DO_NOT_INCLUDE';
+      const link = document.createElement('a'); link.href = '/status?token=DO_NOT_INCLUDE'; link.textContent = 'Submit';
+      document.body.append(password, token, link); document.querySelector('textarea').value = 'DO_NOT_INCLUDE';
     });
     const metadata = await client.captureFormMetadata(env.page);
     assert.equal(metadata.pagePath, '/problem/UVA-100');
+    assert.ok(metadata.submitControls.some(item => item.hrefPath === '/status'));
     assert.ok(!JSON.stringify(metadata).includes('DO_NOT_INCLUDE'));
   } finally { await env.context.close(); }
 });

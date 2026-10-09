@@ -29,26 +29,50 @@ async function openNativeForm(page, problem, { onProgress = () => {}, formTimeou
   if (core.problemFromUrl(page.url()) !== expected) throw new Error('題目頁面不符。');
   const modal = page.locator('#submitModal.show');
   if (!await modal.count()) {
-    onProgress('正在尋找網站的提交按鈕。');
-    const candidates = page.locator('#problem-submit, #submit, a.submit, button.submit, [data-i18n="button.submit"], [data-i18n="problem.submit"]');
-    let opened = false;
-    for (const candidate of await candidates.all()) {
-      if (await candidate.isVisible()) {
-        onProgress('找到提交按鈕，正在開啟表單。');
-        await candidate.click({ timeout: formTimeout }); opened = true; break;
-      }
+    onProgress('正在等待題目專用的提交按鈕；排除提交紀錄導覽連結。');
+    let handle;
+    try {
+      handle = await page.waitForFunction(expectedPath => {
+        if (location.origin !== 'https://vjudge.net' || location.pathname !== expectedPath) throw new Error('尋找提交按鈕時已離開原題目頁。');
+        const known = '#problem-submit, #submit, a.submit, button.submit, [data-i18n="button.submit"], [data-i18n="problem.submit"]';
+        const elements = new Set([...document.querySelectorAll(`${known}, a, button, [role=button]`)]
+          .map(element => element.closest('a,button,[role=button]') || element));
+        const candidates = [...elements].filter(element => {
+          if (!element.getClientRects().length || getComputedStyle(element).visibility === 'hidden' || element.disabled) return false;
+          if (element.closest('nav,.navbar,[role=navigation],#top-nav') || element.classList.contains('nav-link') ||
+              (element.getAttribute('data-i18n') || '').startsWith('top.nav.')) return false;
+          const label = element.textContent.trim() || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+          if (!element.matches(known) && !/submit|提交|送出/i.test(label)) return false;
+          if (element.tagName === 'A') {
+            const href = element.getAttribute('href') || '';
+            if (href && !href.toLowerCase().startsWith('javascript:')) {
+              const target = new URL(href, location.href);
+              if (target.origin !== location.origin || target.pathname !== expectedPath) return false;
+            }
+          }
+          return true;
+        });
+        if (candidates.length > 1) throw new Error('找到多個題目提交按鈕，無法唯一識別；未點擊。');
+        return candidates.length === 1 ? candidates[0] : false;
+      }, `/problem/${expected}`, { timeout: formTimeout });
+    } catch (error) {
+      if (error.name === 'TimeoutError') throw new Error('沒有找到題目專用提交按鈕；導覽列的「提交」是紀錄頁，不會點擊。請提供本次診斷 form。');
+      throw error;
     }
-    if (!opened) {
-      const buttons = page.getByRole('button', { name: /^(submit|提交|提交代码|提交程式碼|送出)$/i });
-      const links = page.getByRole('link', { name: /^(submit|提交|提交代码|提交程式碼|送出)$/i });
-      const button = buttons.or(links);
-      if (await button.count() !== 1) throw new Error('無法唯一識別網站提交按鈕；需要更新助手以配合網站，未送出程式。');
-      onProgress('找到具名提交按鈕，正在開啟表單。');
-      await button.click({ timeout: formTimeout });
-    }
+    const button = handle.asElement();
+    if (!button) throw new Error('無法取得題目提交按鈕，已停止。');
+    onProgress('找到題目提交按鈕，正在開啟表單。');
+    try { await button.click({ timeout: formTimeout }); }
+    finally { await handle.dispose(); }
   }
   onProgress('正在等待提交表單顯示。');
-  await modal.waitFor({ state: 'visible', timeout: formTimeout });
+  await page.waitForFunction(expectedPath => {
+    if (location.origin !== 'https://vjudge.net' || location.pathname !== expectedPath) {
+      throw new Error('點擊後離開原題目頁，沒有開啟正確提交表單；已停止。');
+    }
+    const modal = document.querySelector('#submitModal.show');
+    return Boolean(modal?.getClientRects().length) && getComputedStyle(modal).visibility !== 'hidden';
+  }, `/problem/${expected}`, { timeout: formTimeout });
   onProgress('提交表單已顯示，正在等待 C++ 語言選項。');
   try {
     await page.waitForFunction(() => {
@@ -73,15 +97,23 @@ async function captureFormMetadata(page) {
   if (page.isClosed()) return { pageClosed: true };
   return page.evaluate(() => {
     const visible = element => Boolean(element.getClientRects().length) && getComputedStyle(element).visibility !== 'hidden';
-    const label = element => (element.textContent || element.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+    const label = element => (element.textContent.trim() || element.getAttribute('aria-label') || element.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 100);
     const modal = document.querySelector('#submitModal');
     return {
       pageOrigin: location.origin, pagePath: location.pathname, readyState: document.readyState,
       submitControls: [...document.querySelectorAll('a,button,[role=button]')]
         .filter(element => visible(element) && /submit|提交|送出/i.test(label(element)))
-        .slice(0, 20).map(element => ({ tag: element.tagName, id: element.id.slice(0, 80),
-          className: (element.getAttribute('class') || '').slice(0, 120), label: label(element),
-          i18n: (element.getAttribute('data-i18n') || '').slice(0, 100) })),
+        .slice(0, 20).map(element => {
+          const href = element.getAttribute('href');
+          let hrefPath = null;
+          if (href && !href.toLowerCase().startsWith('javascript:')) {
+            try { hrefPath = new URL(href, location.href).pathname; } catch { /* Omit malformed links. */ }
+          }
+          return { tag: element.tagName, id: element.id.slice(0, 80),
+            className: (element.getAttribute('class') || '').slice(0, 120), label: label(element),
+            i18n: (element.getAttribute('data-i18n') || '').slice(0, 100), hrefPath,
+            inNavigation: Boolean(element.closest('nav,.navbar,[role=navigation],#top-nav')) };
+        }),
       modalExists: Boolean(modal), modalVisible: modal ? visible(modal) : false,
       modalProblem: modal?.querySelector('.problem-origin')?.textContent.trim().slice(0, 80) || null,
       languageSelectExists: Boolean(modal?.querySelector('select[name=language]')),
