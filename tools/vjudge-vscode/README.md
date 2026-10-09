@@ -58,6 +58,7 @@ node tools/vjudge-vscode/cli.cjs query --record .cpe-vjudge/results/這次紀錄
 ## 失敗時
 
 - **查詢沒有可見輸出**：先執行 `node tools/vjudge-vscode/cli.cjs doctor`，再執行 `languages --problem UVA-11332`。保存標準輸出、標準錯誤及程序退出碼。新版會顯示瀏覽器啟動、登入檢查及語言讀取進度；登入請求最多等待 15 秒。診斷只顯示版本、檔案是否存在等資訊，不列出登入內容。若 doctor 也沒有輸出，先由本機 Codex 檢查 Node、工作目錄及終端輸出擷取方式，不要直接判定網站登入失敗。
+- **登入通過但卡在表單**：新版 `languages` 每次在 `.cpe-vjudge/diagnostics/` 建立獨立 JSON，逐步保存進度，失敗時記錄可見提交按鈕的標籤與識別碼、表單是否顯示、語言選項，以及網站程式檔載入失敗和 JavaScript 錯誤的數量。這不是整頁 HTML，不包含密碼、Cookie、程式原始碼、隱藏欄位值或網址查詢參數。若程序被外部中止，JSON 可能仍是 `running`；這不能當成成功。紀錄中的退出碼是助手預期退出碼，實際退出碼仍應由啟動程序的工具擷取。可用 `node tools/vjudge-vscode/cli.cjs languages --problem UVA-11332 --visible` 暫時開啟可見瀏覽器診斷，正常提交流程仍在背景執行。
 - **找不到 Git**：Git 用於下載及更新助手，不用於送出判題程式。請本機 Codex 檢查 Git 是否安裝或只是未加入 PATH；保留現有練習檔案。此狀況不能當成 VJudge 登入或提交成功的證據。
 - 登入失效、真人驗證或存檔模式：停止；重新執行登入任務，必要時按網站指示設定自己的遠端判題帳號。
 - 提交超時／不明回應：紀錄標為 `uncertain`，不自動重送。先在助手登入視窗查明是否已成功提交。

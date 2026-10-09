@@ -7,6 +7,7 @@ const { chromium } = require('playwright-core');
 const client = require('./client.cjs');
 const { runTests } = require('./runner.cjs');
 const core = require('../vjudge-submit/core.js');
+const { createDiagnostic } = require('./diagnostics.cjs');
 
 function options(args) {
   const result = {};
@@ -18,7 +19,12 @@ function options(args) {
   return result;
 }
 const dataRoot = path.join(os.homedir(), '.cpe-vjudge-local');
-async function withBrowser(headless, action) {
+async function withBrowser(headless, action, onProgress = () => {}) {
+  const progress = message => {
+    console.log(`[助手] ${message}`);
+    try { onProgress(message); }
+    catch { console.error('[助手] 診斷進度寫入失敗；請保留終端輸出。'); }
+  };
   await fs.mkdir(dataRoot, { recursive: true, mode: 0o700 });
   let lock;
   try { lock = await fs.open(path.join(dataRoot, 'browser.lock'), 'wx', 0o600); }
@@ -28,11 +34,11 @@ async function withBrowser(headless, action) {
     const settings = { headless, timeout: 30000 };
     if (process.env.CPE_BROWSER_PATH) settings.executablePath = process.env.CPE_BROWSER_PATH;
     else settings.channel = process.platform === 'win32' ? 'msedge' : 'chrome';
-    console.log(`[助手] 正在開啟${headless ? '背景' : '登入'}瀏覽器（${settings.channel || 'CPE_BROWSER_PATH 指定的瀏覽器'}）。`);
+    progress(`正在開啟${headless ? '背景' : '登入'}瀏覽器（${settings.channel || 'CPE_BROWSER_PATH 指定的瀏覽器'}）。`);
     context = await chromium.launchPersistentContext(path.join(dataRoot, 'browser-profile'), settings);
     context.setDefaultTimeout(15000);
     context.setDefaultNavigationTimeout(30000);
-    console.log('[助手] 瀏覽器已啟動。');
+    progress('瀏覽器已啟動。');
     // Session cookies may expire on browser close; preserve them only on the user's machine.
     // Never print, export to Codex cloud, or put this file in the project checkout.
     const sessionFile = path.join(dataRoot, 'browser-session.json');
@@ -41,14 +47,16 @@ async function withBrowser(headless, action) {
       await context.addCookies(session.cookies.filter(cookie => ['vjudge.net', '.vjudge.net'].includes(cookie.domain)));
     } catch (error) { if (error.code !== 'ENOENT') throw new Error('本機登入資料無法載入；請由本機 Codex 檢查，勿上傳登入資料。'); }
     const page = context.pages()[0] || await context.newPage();
-    console.log('[助手] 本機登入資料準備完成；檔案存在不代表登入有效，接著由網站確認。');
+    progress('本機登入資料準備完成；檔案存在不代表登入有效，接著由網站確認。');
     const result = await action(page);
     const state = await context.storageState();
     await fs.writeFile(sessionFile, JSON.stringify({ cookies: state.cookies.filter(cookie => ['vjudge.net', '.vjudge.net'].includes(cookie.domain)) }), { mode: 0o600 });
     return result;
   } finally {
+    progress('正在關閉助手瀏覽器。');
     try { await context?.close(); }
     finally { await lock.close(); await fs.unlink(path.join(dataRoot, 'browser.lock')); }
+    progress('助手瀏覽器已關閉，鎖定已解除。');
   }
 }
 async function save(recordPath, data) {
@@ -107,11 +115,21 @@ async function main() {
   if (typeof args.problem !== 'string') throw new Error('請指定 --problem，例如 UVA-100。');
   const problem = core.problemFromUrl(`https://vjudge.net/problem/${args.problem}`);
   if (command === 'languages') {
-    await withBrowser(true, async page => {
-      const form = await client.openForm(page, problem, { onProgress: message => console.log(`[助手] ${message}`) });
-      console.log(`${problem} 可用 C++ 語言：`);
-      console.log(form.languages.map(item => item.label).join('\n'));
-    });
+    const diagnostic = createDiagnostic(path.join(process.cwd(), '.cpe-vjudge', 'diagnostics'), problem);
+    console.log(`本次診斷紀錄：${diagnostic.file}`);
+    const progress = message => { diagnostic.progress(message); console.log(`[助手] ${message}`); };
+    try {
+      let languages;
+      await withBrowser(args.visible !== true, async page => {
+        const form = await client.openForm(page, problem, {
+          onProgress: progress, onSnapshot: metadata => diagnostic.snapshot(metadata)
+        });
+        languages = form.languages;
+        console.log(`${problem} 可用 C++ 語言：`);
+        console.log(languages.map(item => item.label).join('\n'));
+      }, message => diagnostic.progress(message));
+      diagnostic.success(languages);
+    } catch (error) { diagnostic.failure(error); throw error; }
     return;
   }
   if (args.yes !== true || !args.file || typeof args.language !== 'string') {

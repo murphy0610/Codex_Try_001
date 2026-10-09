@@ -19,7 +19,7 @@ async function assertLoggedIn(page, { timeoutMs = 15000 } = {}) {
   if (!result.loggedIn) throw new Error('登入已失效或網站要求驗證。請從 VS Code 執行「登入 VJudge」，手動完成後再試。');
 }
 
-async function openForm(page, problem, { onProgress = () => {}, formTimeout = 15000 } = {}) {
+async function openNativeForm(page, problem, { onProgress = () => {}, formTimeout = 15000 } = {}) {
   const expected = core.problemFromUrl(`https://vjudge.net/problem/${problem}`);
   onProgress(`正在開啟 ${expected} 題目頁。`);
   await page.goto(`https://vjudge.net/problem/${expected}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -29,20 +29,27 @@ async function openForm(page, problem, { onProgress = () => {}, formTimeout = 15
   if (core.problemFromUrl(page.url()) !== expected) throw new Error('題目頁面不符。');
   const modal = page.locator('#submitModal.show');
   if (!await modal.count()) {
+    onProgress('正在尋找網站的提交按鈕。');
     const candidates = page.locator('#problem-submit, #submit, a.submit, button.submit, [data-i18n="button.submit"], [data-i18n="problem.submit"]');
     let opened = false;
     for (const candidate of await candidates.all()) {
-      if (await candidate.isVisible()) { await candidate.click(); opened = true; break; }
+      if (await candidate.isVisible()) {
+        onProgress('找到提交按鈕，正在開啟表單。');
+        await candidate.click({ timeout: formTimeout }); opened = true; break;
+      }
     }
     if (!opened) {
       const buttons = page.getByRole('button', { name: /^(submit|提交|提交代码|提交程式碼|送出)$/i });
       const links = page.getByRole('link', { name: /^(submit|提交|提交代码|提交程式碼|送出)$/i });
       const button = buttons.or(links);
       if (await button.count() !== 1) throw new Error('無法唯一識別網站提交按鈕；需要更新助手以配合網站，未送出程式。');
-      await button.click();
+      onProgress('找到具名提交按鈕，正在開啟表單。');
+      await button.click({ timeout: formTimeout });
     }
   }
+  onProgress('正在等待提交表單顯示。');
   await modal.waitFor({ state: 'visible', timeout: formTimeout });
+  onProgress('提交表單已顯示，正在等待 C++ 語言選項。');
   try {
     await page.waitForFunction(() => {
       const select = document.querySelector('#submitModal.show select[name=language]');
@@ -60,6 +67,53 @@ async function openForm(page, problem, { onProgress = () => {}, formTimeout = 15
   if (!info.languages.length) throw new Error('沒有取得 C++ 語言清單；查詢失敗。');
   onProgress(`已取得 ${info.languages.length} 個 C++ 語言選項。`);
   return { modal, ...info };
+}
+
+async function captureFormMetadata(page) {
+  if (page.isClosed()) return { pageClosed: true };
+  return page.evaluate(() => {
+    const visible = element => Boolean(element.getClientRects().length) && getComputedStyle(element).visibility !== 'hidden';
+    const label = element => (element.textContent || element.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+    const modal = document.querySelector('#submitModal');
+    return {
+      pageOrigin: location.origin, pagePath: location.pathname, readyState: document.readyState,
+      submitControls: [...document.querySelectorAll('a,button,[role=button]')]
+        .filter(element => visible(element) && /submit|提交|送出/i.test(label(element)))
+        .slice(0, 20).map(element => ({ tag: element.tagName, id: element.id.slice(0, 80),
+          className: (element.getAttribute('class') || '').slice(0, 120), label: label(element),
+          i18n: (element.getAttribute('data-i18n') || '').slice(0, 100) })),
+      modalExists: Boolean(modal), modalVisible: modal ? visible(modal) : false,
+      modalProblem: modal?.querySelector('.problem-origin')?.textContent.trim().slice(0, 80) || null,
+      languageSelectExists: Boolean(modal?.querySelector('select[name=language]')),
+      languageLabels: [...(modal?.querySelector('select[name=language]')?.options || [])]
+        .slice(0, 60).map(option => option.textContent.trim().slice(0, 100)),
+      codeMirrorExists: Boolean(modal?.querySelector('.CodeMirror'))
+    };
+  });
+}
+
+async function openForm(page, problem, options = {}) {
+  const failedScripts = [];
+  let pageErrorCount = 0;
+  const onPageError = () => { pageErrorCount++; };
+  const onRequestFailed = request => {
+    const url = new URL(request.url());
+    if (url.origin === 'https://vjudge.net' && url.pathname.startsWith('/static/bundle/') && failedScripts.length < 20) {
+      failedScripts.push({ path: url.pathname, error: request.failure()?.errorText || 'unknown' });
+    }
+  };
+  page.on('pageerror', onPageError); page.on('requestfailed', onRequestFailed);
+  try { return await openNativeForm(page, problem, options); }
+  catch (error) {
+    if (options.onSnapshot) {
+      let snapshot;
+      try { snapshot = await captureFormMetadata(page); }
+      catch { snapshot = { pageMetadataUnavailable: true }; }
+      try { options.onSnapshot({ ...snapshot, pageErrorCount, failedScripts }); }
+      catch { /* Diagnostics must not replace the original failure. */ }
+    }
+    throw error;
+  } finally { page.off('pageerror', onPageError); page.off('requestfailed', onRequestFailed); }
 }
 
 function chooseLanguage(languages, query) {
@@ -131,4 +185,4 @@ async function waitForResult(page, problem, runId, { attempts = 25, interval = 5
   }
   return last;
 }
-module.exports = { assertLoggedIn, openForm, chooseLanguage, submitOnce, queryResult, waitForResult };
+module.exports = { assertLoggedIn, openForm, chooseLanguage, submitOnce, queryResult, waitForResult, captureFormMetadata };

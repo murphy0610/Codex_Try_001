@@ -50,7 +50,10 @@ async function setup(options = {}) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ runId: options.wrongId ? 999 : 5678, oj: 'UVA', probNum: '100',
         status: queries === 1 ? 'Judging' : options.verdict || 'Accepted', processing: queries === 1 }) });
     }
-    return route.fulfill({ contentType: 'text/html', body: options.noLanguages ? fixture.replace('GNU C++17', 'Java 17') : fixture });
+    let body = options.noLanguages ? fixture.replace('GNU C++17', 'Java 17') : fixture;
+    if (options.customSubmit) body = body.replace('<button id="problem-submit">Submit</button>', '<button id="custom-submit">Submit Solution</button>')
+      .replace("document.getElementById('problem-submit').onclick", "document.getElementById('custom-submit').onclick");
+    return route.fulfill({ contentType: 'text/html', body });
   });
   return { context, page, submissions, queries: () => queries };
 }
@@ -141,5 +144,29 @@ test('language query identifies successful login and completion through progress
     assert.ok(progress.some(text => text.includes('登入檢查通過')));
     assert.ok(progress.some(text => text.includes('已取得 1 個')));
     assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('unknown submit control yields structural metadata without a submission', async () => {
+  const env = await setup({ customSubmit: true });
+  try {
+    let metadata;
+    await assert.rejects(client.openForm(env.page, 'UVA-100', { onSnapshot: value => { metadata = value; } }), /無法唯一識別/);
+    assert.equal(metadata.modalVisible, false);
+    assert.ok(metadata.submitControls.some(item => item.id === 'custom-submit' && item.label === 'Submit Solution'));
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('structural metadata omits source, passwords, hidden token values, and URL query strings', async () => {
+  const env = await setup();
+  try {
+    await env.page.goto('https://vjudge.net/problem/UVA-100?token=DO_NOT_INCLUDE');
+    await env.page.evaluate(() => {
+      const password = document.createElement('input'); password.type = 'password'; password.value = 'DO_NOT_INCLUDE';
+      const token = document.createElement('input'); token.type = 'hidden'; token.name = 'token'; token.value = 'DO_NOT_INCLUDE';
+      document.body.append(password, token); document.querySelector('textarea').value = 'DO_NOT_INCLUDE';
+    });
+    const metadata = await client.captureFormMetadata(env.page);
+    assert.equal(metadata.pagePath, '/problem/UVA-100');
+    assert.ok(!JSON.stringify(metadata).includes('DO_NOT_INCLUDE'));
   } finally { await env.context.close(); }
 });
