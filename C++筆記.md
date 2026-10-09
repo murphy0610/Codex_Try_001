@@ -12,12 +12,12 @@
 
 ### 1. 在 VS Code 終端機編譯 C++（Windows／PowerShell）
 
-目前電腦可使用 MSYS2 的 `g++`，路徑是 `C:\msys64\ucrt64\bin\g++.exe`。本資料夾已設定 `.vscode/tasks.json` 使用此編譯器；開啟要編譯的 `.cpp` 檔案後，可以按 `Ctrl+Shift+B` 編譯，也可以在終端機手動編譯。
+目前電腦可使用 MSYS2 的 `g++`，路徑是 `C:\msys64\ucrt64\bin\g++.exe`。本資料夾的預設工作已設定為「CPE Compile and Run」；儲存並開啟要執行的 `.cpp` 檔案後，可以按 `Ctrl+Shift+B` 編譯並執行，也可以在終端機手動編譯。
 
 先儲存程式，並確認終端機位於程式所在資料夾，執行：
 
 ```powershell
-g++ -std=c++17 -Wall -Wextra 'Sort! Sort!! and Sort!!!.cpp' -o 'sort.exe'
+g++ -std=c++17 -Wall -Wextra 'VJudge/Sort! Sort!! and Sort!!!.cpp' -o 'sort.exe'
 ```
 
 - `-std=c++17`：使用 C++17 語言標準。
@@ -32,6 +32,12 @@ g++ -std=c++17 -Wall -Wextra 'Sort! Sort!! and Sort!!!.cpp' -o 'sort.exe'
 ```
 
 `g++` 負責編譯與連結；`.\sort.exe` 才是執行程式。修改程式後要重新編譯，再執行新版。
+
+#### 程式能編譯，卻沒有執行結果
+
+先區分「產生 `.exe`」與「執行 `.exe`」兩個步驟。僅編譯成功不會自動執行程式。本專案的「CPE Compile and Run」會先編譯，再執行目前 `.cpp` 對應的 `.exe`；執行檔放在該原始檔的資料夾，包含 `VJudge` 子資料夾。要先切回想執行的 `.cpp` 分頁，避免操作到同名的舊檔。
+
+本次 `VJudge/Sort! Sort!! and Sort!!!.cpp` 已實際編譯並執行，結果是 `Sort! Sort!! and Sort!!!`。
 
 #### 常見錯誤：缺少 `main()`
 
