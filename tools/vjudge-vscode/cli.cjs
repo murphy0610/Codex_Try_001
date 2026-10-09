@@ -98,6 +98,43 @@ async function main() {
     console.log(`本地 ${tests.standard} 測試通過 ${tests.passed}/${tests.total}；這不是線上 AC。`);
     return;
   }
+  if (command === 'library') {
+    const library = require('./library.cjs');
+    console.log('正在下載 VJudge 文章 2679 的題單與 UVA 官方原題；不需要讀取登入資料。');
+    const fetcher = await library.createFetcher();
+    try {
+      const result = await library.downloadLibrary({ fetchBytes: url => fetcher.fetch(url) });
+      console.log(`題庫：新增 ${result.downloaded} 題，既有 PDF 驗證 ${result.cached} 題，失敗 ${result.failed} 題，共 ${result.total} 題。`);
+      console.log(`在 VS Code 開啟這份題單：${result.indexFile}`);
+      console.log(`下載紀錄：${result.reportFile}`);
+      console.log('原題已保存；未建立解答、未拆分範例測資、未執行解題測試，也未提交任何解答。');
+      if (result.failed) process.exitCode = 1;
+    } finally { await fetcher.close(); }
+    return;
+  }
+  if (['workbook', 'problem'].includes(command)) {
+    const library = require('./library.cjs');
+    const fetcher = await library.createFetcher();
+    try {
+      const workbook = await library.getWorkbook({ fetchBytes: url => fetcher.fetch(url), offline: args.offline === true });
+      if (workbook.offlineCache) console.log(workbook.cacheWarning);
+      if (command === 'workbook') {
+        console.log(JSON.stringify(workbook, null, 2));
+        console.log(`已讀取 ${workbook.problems.length} 題的清單；未下載任何題目原文。`);
+      } else {
+        const problem = workbook.problems.find(item => item.id === args.problem);
+        if (!problem) throw new Error('請指定文章 2679 內的 --problem 題號，例如 UVA-10041。');
+        const fetchBytes = args.offline === true ? async () => { throw new Error('這題尚未保存，離線模式無法載入；請連線後再點選題目。'); }
+          : url => fetcher.fetch(url);
+        const result = await library.getProblem({ problem, fetchBytes });
+        console.log(`${problem.id}：${result.cached ? '讀取本機已保存原題' : '已載入本題官方原文'}（${result.pages} 頁）。`);
+        console.log(`題目文字：${result.markdownFile}`);
+        console.log(`原始 PDF：${result.pdfFile}`);
+        console.log('只讀取本題，保留既有練習程式與測資，未提交解答。');
+      }
+    } finally { await fetcher.close(); }
+    return;
+  }
   if (command === 'query') {
     if (!args.record) throw new Error('請指定 --record 判題紀錄 JSON。');
     const recordPath = path.resolve(args.record);
@@ -112,7 +149,7 @@ async function main() {
     });
     return;
   }
-  if (!['languages', 'submit'].includes(command)) throw new Error('指令：doctor、login、languages --problem 題號、test --file 檔案、submit、query --record 紀錄。');
+  if (!['languages', 'submit'].includes(command)) throw new Error('指令：doctor、login、workbook（文章 2679 題單）、problem --problem 題號（只載入本題）、library（整批下載）、languages --problem 題號、test --file 檔案、submit、query --record 紀錄。');
   if (typeof args.problem !== 'string') throw new Error('請指定 --problem，例如 UVA-100。');
   const problem = core.problemFromUrl(`https://vjudge.net/problem/${args.problem}`);
   if (command === 'languages') {

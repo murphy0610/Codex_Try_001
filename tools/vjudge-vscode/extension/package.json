@@ -1,0 +1,36 @@
+{
+  "name": "cpe-practice",
+  "displayName": "CPE 練習題單",
+  "description": "在 VS Code 選取 VJudge 文章 2679 的題目，閱讀原題並開啟自己的 C++ 練習。",
+  "version": "0.2.0",
+  "publisher": "cpe-local",
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.105.0" },
+  "categories": ["Education"],
+  "main": "./extension.cjs",
+  "activationEvents": ["onView:cpePractice.problems", "onCommand:cpePractice.choose"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": false, "description": "題單需要讀寫本機練習檔案，測試及提交會執行專案的助手。" },
+    "virtualWorkspaces": { "supported": false }
+  },
+  "contributes": {
+    "viewsContainers": { "activitybar": [{ "id": "cpe-practice", "title": "CPE 練習", "icon": "media/practice.svg" }] },
+    "views": { "cpe-practice": [{ "id": "cpePractice.problems", "name": "文章 2679 題單" }] },
+    "viewsWelcome": [{ "view": "cpePractice.problems", "contents": "開啟 Codex_Try_001 專案資料夾，再按重新讀取。\n[重新讀取題單](command:cpePractice.refresh)" }],
+    "commands": [
+      { "command": "cpePractice.refresh", "title": "CPE：重新讀取文章 2679 題單", "icon": "$(refresh)" },
+      { "command": "cpePractice.choose", "title": "CPE：選題", "icon": "$(search)" },
+      { "command": "cpePractice.open", "title": "CPE：閱讀題目並開啟練習" },
+      { "command": "cpePractice.test", "title": "CPE：測試目前這題" },
+      { "command": "cpePractice.languages", "title": "CPE：查詢目前這題的 C++ 語言" },
+      { "command": "cpePractice.submit", "title": "CPE：測試通過後提交目前這題" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "cpePractice.choose", "when": "view == cpePractice.problems", "group": "navigation@1" },
+        { "command": "cpePractice.refresh", "when": "view == cpePractice.problems", "group": "navigation@2" }
+      ]
+    }
+  },
+  "scripts": { "test": "node --test tests/*.test.cjs" }
+}

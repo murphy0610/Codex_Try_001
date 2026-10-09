@@ -8,7 +8,7 @@
 
 1. 將完整專案檔案同步到 Windows；雲端 `/workspace` 路徑不是 Windows 路徑。要有 `.vscode/tasks.json`、`tools/vjudge-vscode/` 與共用的 `tools/vjudge-submit/core.js`。不要執行舊的擴充功能安裝腳本。
 2. 使用 VS Code 開啟該專案資料夾。
-3. 請本機 Codex 檢查 `node --version`、`npm --version`、`g++ --version`。需要 Node.js 20 以上、C++ 編譯器及 Edge（Windows 預設使用）。缺少時由本機 Codex 說明安裝與驗證方法，不假設已安裝。
+3. 請本機 Codex 檢查 `node --version`、`npm --version`、`g++ --version`。需要 Node.js 20.16.0 以上、C++ 編譯器及 Edge（Windows 預設使用）。缺少時由本機 Codex 說明安裝與驗證方法，不假設已安裝。
 4. VS Code 按 `Ctrl+Shift+P`，輸入 **Tasks: Run Task／工作：執行工作**，執行「CPE：安裝本機提交助手相依套件」。使用 lockfile 安裝，無須下載 Playwright 的瀏覽器；使用本機 Edge。
 5. 執行「CPE：登入 VJudge」。助手會開啟獨立的瀏覽器視窗，與平常瀏覽器使用不同的資料夾。
 6. 在這個視窗手動登入、完成網站驗證，再回到 VS Code 終端機按 Enter。只有確認已登入才會成功，接著關閉這個視窗。
@@ -16,6 +16,37 @@
 登入狀態保存在你自己的使用者資料夾 `.cpe-vjudge-local/`，不在專案、也不在 GitHub。它包含私密的登入資料，勿上傳或提供給雲端 Codex。保存登入不保證永久有效，也不保證網站允許背景瀏覽器操作；若要求驗證，助手會停止並請你重新登入，不會繞過真人驗證。
 
 若使用 Chrome，可讓本機 Codex將 `CPE_BROWSER_PATH` 設為本機 Chrome 執行檔的完整路徑。此變數不是密鑰，不需傳給雲端。
+
+## 方案①：在 VS Code 點選題目才載入
+
+題單固定使用你指定的 [VJudge 文章 2679：CPE 一顆星選集](https://vjudge.net/article/2679)。題單的分類、題號與順序來自該文章；每題原文從同題號的 UVA 官方 PDF 載入。公開題單與原文不需要讀取你保存的登入資料；提交判題仍使用原本的登入助手。
+
+已安裝提交助手的 Windows 使用者：
+
+1. 先將本機專案快轉更新到包含新版介面的版本。保留 `practice`、`main.cpp` 與測資；若 Git 遇到衝突就停止，不重置或刪除。
+2. 請本機 Codex 檢查 VS Code 版本至少為 1.105、Node.js 至少為 20.16.0，並在專案根目錄執行 `npm ci --prefix tools/vjudge-vscode --cache .cpe-vjudge/npm-cache`。擴充功能會使用這份專案的助手，因此只安裝 VSIX 而未更新助手仍不能使用。
+3. 在 VS Code 左側點「擴充功能」，右上角 `…` 選「從 VSIX 安裝」，選擇專案內的 `tools/vjudge-vscode/cpe-vjudge-practice-0.2.0.vsix`。VSIX 是 VS Code 擴充功能的安裝檔，不用解壓縮。按 VS Code 指示重新載入視窗。
+4. 點左側 **CPE 練習** 圖示，展開文章中的分類，點選一題。此時才載入該題，不預先下載其他題目的全文。
+5. 點題後，右邊會開啟你的 `main.cpp`；也可按題目頁的「開啟我的程式」。保留已有的 `practice/題號/main.cpp`，沒有檔案時才建立解題部分留白的框架。題目、程式與既有 Codex 對話都在 VS Code。
+
+題目頁直接呈現官方 PDF，保留圖形、公式、表格與範例版面；另有擷取文字供搜尋與本機 Codex 閱讀。文字不是中文翻譯，可對旁邊的 Codex 說「翻譯這題的題意、輸入與輸出，先不要提供解法」。安裝與按鈕完整說明見 [擴充功能說明](extension/README.md)。
+
+選題後可對本機 Codex 說：
+
+> 我要練習目前選的 UVA-10041。讀取 `.cpe-vjudge/library/2679/UVA-10041/題目.md` 與原始 PDF，解釋題意。保留既有程式與測資，從官方 Sample Input / Sample Output 建立測資並核對空白與換行；不要替我解題，也先不要提交。
+
+請把題號換成自己選的題目。此版本不猜測或自動拆分 PDF 的範例測資，避免把並排欄位當成錯誤測資；沒有測資時，測試會明確失敗，不能當成通過。
+
+載入後的原題與題單記錄保存在 `.cpe-vjudge/library/2679/`，由 Git 忽略。再點同一題時使用已保存的 PDF；連線失敗時，有題單快取就會標明使用本機保存的舊題單，沒有快取則回報錯誤。重新整理題單只更新清單，不下載全部題目。已有 `題目.md` 筆記、程式及測資都會保留。
+
+沒有使用擴充功能時，本機 Codex 也可在專案根目錄執行：
+
+```sh
+node tools/vjudge-vscode/cli.cjs workbook
+node tools/vjudge-vscode/cli.cjs problem --problem UVA-10041
+```
+
+第一個指令只讀取題單，第二個只載入指定題目的原文。整批下載是另一個可選指令 `node tools/vjudge-vscode/cli.cjs library`，方案①的日常流程不會執行它。
 
 ## 每次練習
 
@@ -39,7 +70,7 @@ practice/UVA-100/
 7. 判定顯示在 VS Code 終端機，並保存到 `.cpe-vjudge/results/`。此資料夾已忽略 Git，沒有密碼或 Cookie。
 8. 對本機 Codex 說「讀取剛才的判題紀錄，解釋失敗原因」；修改後說「重新測試並提交這個題目」。本機 Codex可以執行下面相同指令，不需你操作工作選單。
 
-此版本尚未自動下載完整題目敘述。題目文件仍需先取得，不能說已完成所有題庫操作。題庫索引工具是 `tools/fetch_vjudge_index.py`，目前僅整理題號與連結。
+安裝上方的題單介面後，直接點選題目練習；不需要逐題到瀏覽器複製題意。載入題目與測試／提交功能分開：原題載入成功不能證明解答正確或已得到 AC。
 
 ## 給本機 Codex 的指令範例
 
@@ -47,6 +78,7 @@ practice/UVA-100/
 
 ```sh
 node tools/vjudge-vscode/cli.cjs login
+node tools/vjudge-vscode/cli.cjs library
 node tools/vjudge-vscode/cli.cjs languages --problem UVA-100
 node tools/vjudge-vscode/cli.cjs test --file practice/UVA-100/main.cpp --std c++17
 node tools/vjudge-vscode/cli.cjs submit --file practice/UVA-100/main.cpp --problem UVA-100 --language "GNU C++17" --yes
@@ -100,3 +132,20 @@ npm test
 錯誤模擬包含結構化重複程式碼錯誤、原生表單提示保存、不複製額外回應值、無編號回應仍保持不確定，以及 HTTP 失敗不誤認成明確拒絕。CLI 測試另確認沒有編號時不開啟瀏覽器、不改寫原紀錄。
 
 上述自動測試使用雲端 Linux／Chromium 的模擬網站，未使用真人 VJudge 帳號提交。使用者已回報 Windows／Edge 的 UVA-11332 真實提交 #73220166 為 AC，之後的網站表單截圖顯示重複程式碼被拒絕。本次錯誤保存與狀態辨識修正仍待 Windows 本機驗證。模擬 AC 不代表線上 AC。
+
+題庫測試包含：按文章內文順序與分類讀取題單；拒絕登入頁、錯誤文章、漏題與異常題號；重跑保留既有解答、測資與題目筆記；把非 PDF 回應列為失敗並繼續其他題目；實際讀取測試用 PDF 的文字與範例。測試用範例只能證明下載器可用，不能證明線上題庫的所有版面或解答正確。Windows 的題庫下載及 PDF 文字擷取仍待本機執行確認。
+
+
+方案①另在雲端 Linux 的實際 VS Code 1.105.1（擴充功能執行環境 Node 22.19.0）驗證：49 題清單載入後沒有題目 PDF；依序點選 UVA-11332、UVA-10041、UVA-10415，只保存這三題，原始 PDF 在 VS Code 顯示並可選取文字，10415 的兩頁及表格均能呈現。既有 `main.cpp` 和兩個測資檔以 SHA-256 比對確認沒有變動；新題只建立留白框架。實際按測試按鈕且沒有測資時，助手退出碼為 1，此情境的預期行為是回報失敗，不是解題測試通過。
+
+這次實際 VS Code 測試曾發現兩項相容性失敗：擴充功能執行環境無法直接擷取 PDF 文字，以及一般 PDF.js 版本需要較新的瀏覽器函式。已分別改用有逾時及大小限制的本機 Node 文字擷取程序、PDF.js legacy 閱讀版本，重新實測上述選題與原始 PDF 顯示成功。單元測試另有助手 52 項、擴充功能 7 項全部執行通過；模擬網站的 AC 不代表線上 AC。
+
+安裝檔使用 `@vscode/vsce@4.0.0` 製作，並以雲端 VS Code 的 CLI 實際安裝成功。VSIX 內的 7 個程式／資源檔與目前原始碼逐一核對一致；沒有包含題目原文、測資、登入資料或專案相依套件。Windows 安裝、Windows 題目顯示，以及透過本次新介面的真人 VJudge 提交仍未執行。
+
+維護者重製安裝檔時，需要 Node.js 22 以上，從 `tools/vjudge-vscode/extension/` 執行：
+
+```sh
+npx --yes @vscode/vsce@4.0.0 package --no-dependencies --allow-missing-repository --skip-license --out ../cpe-vjudge-practice-0.2.0.vsix
+```
+
+這是打包指令，日常練習無須執行。

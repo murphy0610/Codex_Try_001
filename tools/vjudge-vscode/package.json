@@ -2,8 +2,8 @@
   "name": "cpe-vjudge-vscode-helper",
   "private": true,
   "version": "0.1.0",
-  "description": "VS Code 本機 VJudge 登入、測試、提交與結果查詢工具",
-  "engines": { "node": ">=20" },
-  "scripts": { "test": "node --test tests/client.test.cjs tests/runner.test.cjs tests/diagnostics.test.cjs ../vjudge-submit/tests/core.test.cjs" },
-  "dependencies": { "playwright-core": "1.62.1" }
+  "description": "VS Code 本機 CPE 題庫下載、VJudge 登入、測試、提交與結果查詢工具",
+  "engines": { "node": ">=20.16.0" },
+  "scripts": { "test": "node --test tests/client.test.cjs tests/runner.test.cjs tests/diagnostics.test.cjs tests/library.test.cjs ../vjudge-submit/tests/core.test.cjs" },
+  "dependencies": { "pdfjs-dist": "5.4.624", "playwright-core": "1.62.1" }
 }

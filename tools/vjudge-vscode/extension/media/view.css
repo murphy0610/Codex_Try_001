@@ -1,0 +1,24 @@
+html { scrollbar-gutter: stable; }
+body { font-family: var(--vscode-font-family, sans-serif); color: var(--vscode-foreground, #ddd); background: var(--vscode-editor-background, #202020); margin: 0; padding: 16px; }
+header { border-bottom: 1px solid var(--vscode-panel-border, #555); margin-bottom: 12px; }
+h1 { font-size: 1.3rem; line-height: 1.5; margin: 0 0 6px; }
+p { line-height: 1.6; }
+.help { font-size: .9rem; color: var(--vscode-descriptionForeground, #aaa); }
+.actions, .reader-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button, select { color: var(--vscode-button-foreground, white); background: var(--vscode-button-background, #0e639c); border: 1px solid transparent; padding: 6px 10px; border-radius: 2px; cursor: pointer; font: inherit; }
+button:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--vscode-focusBorder, #0090ff); outline-offset: 2px; }
+button:disabled { opacity: .5; cursor: wait; }
+pre { white-space: pre; overflow: auto; padding: 12px; border: 1px solid var(--vscode-panel-border, #555); font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 14px); line-height: 1.5; }
+#notice { min-height: 1.5em; }
+#pdfPages { overflow: auto; }
+.pdf-page { position: relative; margin: 0 auto 18px; background: white; box-shadow: 0 1px 5px #1119; color: black; }
+.pdf-page canvas { display: block; }
+.page-caption { margin: 12px 0 8px; text-align: center; font-size: .9rem; }
+.textLayer { position: absolute; text-align: initial; inset: 0; overflow: clip; opacity: 1; line-height: 1; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; caret-color: black; z-index: 0; --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
+.textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+.textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) { z-index: 1; --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height)); --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+.textLayer .markedContent { display: contents; }
+.textLayer span[role="img"] { user-select: none; cursor: default; }
+.textLayer ::selection { background: #3390ff80; }
+[hidden] { display: none !important; }

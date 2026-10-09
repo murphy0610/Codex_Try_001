@@ -13,6 +13,11 @@
       "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
     },
     {
+      "label": "CPE：讀取文章 2679 題單（不下載全部原題）",
+      "type": "process", "command": "node", "args": ["tools/vjudge-vscode/cli.cjs", "workbook"],
+      "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
+    },
+    {
       "label": "CPE：測試目前 C++ 檔案",
       "type": "process", "command": "node", "args": ["tools/vjudge-vscode/cli.cjs", "test", "--file", "${file}", "--std", "${input:cpeStandard}"],
       "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": []
