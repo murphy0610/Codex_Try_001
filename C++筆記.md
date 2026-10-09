@@ -12,7 +12,7 @@
 
 ### 1. 在 VS Code 終端機編譯 C++（Windows／PowerShell）
 
-目前電腦可使用 MSYS2 的 `g++`，路徑是 `C:\msys64\ucrt64\bin\g++.exe`。本資料夾的預設工作已設定為「CPE Compile and Run」；儲存並開啟要執行的 `.cpp` 檔案後，可以按 `Ctrl+Shift+B` 編譯並執行，也可以在終端機手動編譯。
+目前電腦可使用 MSYS2 的 `g++`，路徑是 `C:\msys64\ucrt64\bin\g++.exe`。本資料夾的預設編譯工作為「C/C++: g++.exe build active file」；儲存並開啟目標 `.cpp` 後，`Ctrl+Shift+B` 只編譯，`Ctrl+F5` 編譯後執行，`F5` 編譯後除錯。也可以從「Terminal → Run Task」選「CPE Compile and Run」，或在終端機手動編譯。
 
 先儲存程式，並確認終端機位於程式所在資料夾，執行：
 
@@ -101,6 +101,14 @@ cout << sum;
 本機 GDB 已安裝於 `C:\msys64\ucrt64\bin\gdb.exe`。前次修正將編譯工作指向 `g++`，建立 `.vscode/launch.json` 連接 GDB，並使用帶有 `-g` 的編譯工作。已實際驗證程式能在 `main()` 斷點停住。
 
 參考：[GDB 官方介紹](https://sourceware.org/gdb/)。
+
+#### 編譯器選錯與執行檔被鎖住
+
+- 若錯誤視窗顯示 `preLaunchTask 'C/C++: cl.exe build active file'`，並出現 `fatal error C1083` 找不到 `bits/stdc++.h`，表示這次啟動實際用了 Microsoft 編譯器。即使已安裝 GDB，仍需讓預設 C/C++ 編譯工作使用 `g++`，並與 `launch.json` 的 `preLaunchTask` 一致。
+- C/C++ 擴充套件的執行按鈕會使用預設 C/C++ 編譯工作產生或選擇除錯設定；只更改編輯器的標頭設定或新增 GDB 路徑，不能解決選錯編譯工作的問題。
+- 若改完設定後仍沿用舊選項，取消目前的錯誤視窗，執行「Developer: Reload Window」，回到目標 `.cpp`，再使用本專案的 `CPE: g++ Run and Debug active file`。
+- Windows 上，仍在執行的 `.exe` 可能無法被新的編譯結果覆寫。遇到 `cannot open output file ... Permission denied` 時，先確認舊程式是否仍在執行；用 `Shift+F5` 停止除錯，或在執行程式的終端機按 `Ctrl+C` 停止，再重新編譯。
+- 程式停在 `cin` 時可能只是等待輸入；目前的練習程式有輸入與排序，但尚未加入 `cout`，所以輸入完資料後不會顯示排序結果。
 
 ## 我的補充
 
