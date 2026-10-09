@@ -71,3 +71,18 @@ test('CLI submission for real C++11 label rejects C++17 code before launching an
     await assert.rejects(fs.access(path.join(env.root, '.cpe-vjudge')), { code: 'ENOENT' });
   } finally { await fs.rm(env.root, { recursive: true, force: true }); }
 });
+test('CLI query explains missing IDs without launching a browser or changing the record', async () => {
+  const env = await setup();
+  try {
+    const file = path.join(env.root, 'rejected.json');
+    const data = JSON.stringify({ problem: 'UVA-11332', runId: null, state: 'rejected' });
+    await fs.writeFile(file, data);
+    await assert.rejects(execute(process.execPath, [path.resolve(__dirname, '../cli.cjs'), 'query', '--record', file], { cwd: env.root, timeout: 30000 }), error => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /沒有提交編號.*rejected.*不能用 query/);
+      assert.doesNotMatch(error.stdout, /正在開啟.*瀏覽器/);
+      return true;
+    });
+    assert.equal(await fs.readFile(file, 'utf8'), data);
+  } finally { await fs.rm(env.root, { recursive: true, force: true }); }
+});

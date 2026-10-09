@@ -156,7 +156,21 @@ function chooseLanguage(languages, query) {
   return matches[0];
 }
 
-async function submitOnce(page, { problem, source, languageQuery, beforeClick = async () => {} }) {
+async function captureSubmitAlert(page) {
+  if (page.isClosed() || !await page.locator('#submit-alert').count()) return null;
+  try {
+    await page.waitForFunction(() => {
+      const element = document.querySelector('#submit-alert');
+      return element?.getClientRects().length && element.innerText.trim();
+    }, null, { timeout: 2000 });
+  } catch { /* No translated alert may be available; keep response metadata. */ }
+  try {
+    const text = await page.locator('#submit-alert').evaluate(element => element.getClientRects().length ? element.innerText : '');
+    return core.safeMessage(text) || null;
+  } catch { return null; }
+}
+
+async function submitOnce(page, { problem, source, languageQuery, beforeClick = async () => {}, onDiagnostic = async () => {} }) {
   if (typeof source !== 'string' || !source.trim() || source.length > 200000) throw new Error('程式為空或超過 200,000 字元。');
   const form = await openForm(page, problem);
   const language = chooseLanguage(form.languages, languageQuery);
@@ -190,12 +204,27 @@ async function submitOnce(page, { problem, source, languageQuery, beforeClick = 
   await button.click();
   let response;
   try { response = await responsePromise; }
-  catch { throw new Error('沒有收到提交編號。可能是驗證、表單錯誤或超時；請用「登入 VJudge」查看網站結果。勿直接重送。'); }
-  if (!response.ok()) throw new Error(`提交收到 HTTP ${response.status()}。結果不確定；請先查看網站，不會自動重送。`);
+  catch {
+    await onDiagnostic({ responseReceived: false, formError: await captureSubmitAlert(page) });
+    throw new Error('沒有收到提交編號。可能是驗證、表單錯誤或超時；請查看本次診斷與網站提交紀錄，勿直接重送。');
+  }
   let data;
-  try { data = await response.json(); }
-  catch { throw new Error('提交回應不是預期資料，結果不確定；請先查看網站，不會自動重送。'); }
-  return { runId: core.submissionReply(data), language: language.label };
+  let diagnostic = { responseReceived: true, httpStatus: response.status() };
+  try { data = await response.json(); diagnostic.response = core.submissionResponseInfo(data); }
+  catch { diagnostic.response = { kind: 'not-json' }; }
+  try {
+    if (!response.ok()) throw new Error(`提交收到 HTTP ${response.status()}。結果不確定；不會自動重送。`);
+    if (diagnostic.response.kind === 'not-json') throw new Error('提交回應不是預期資料，結果不確定；不會自動重送。');
+    const runId = core.submissionReply(data);
+    await onDiagnostic(diagnostic);
+    return { runId, language: language.label };
+  } catch (error) {
+    diagnostic.formError = await captureSubmitAlert(page);
+    await onDiagnostic(diagnostic);
+    error.submissionRejected = response.ok() && diagnostic.response.knownRejection === true;
+    if (diagnostic.formError) error.message += ` 表單提示：${diagnostic.formError}`;
+    throw error;
+  }
 }
 
 async function queryResult(page, problem, runId) {

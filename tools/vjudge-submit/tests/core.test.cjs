@@ -20,6 +20,21 @@ test('human verification and remote-account errors remain failures', () => {
   assert.throws(() => core.submissionReply({ challenge: true }), /真人驗證/);
   assert.throws(() => core.submissionReply({ errorCode: 'bind_account_missing' }), /bind_account_missing/);
 });
+test('structured website errors retain their reason without copying arguments, HTML or other response values', () => {
+  const data = { error: { i18nKey: 'submit.error.duplicate_code', i18nArgs: { token: 'DO_NOT_INCLUDE' } }, token: 'DO_NOT_INCLUDE', source: 'DO_NOT_INCLUDE' };
+  const info = core.submissionResponseInfo(data);
+  assert.equal(info.knownRejection, true);
+  assert.equal(info.errorKind, 'i18n');
+  assert.equal(info.errorKey, 'submit.error.duplicate_code');
+  assert.throws(() => core.submissionReply(data), /這份程式碼之前已經提交過/);
+  assert.ok(!JSON.stringify(info).includes('DO_NOT_INCLUDE'));
+  assert.equal(core.submissionResponseInfo({ error: { text: '請稍後再試。' } }).errorText, '請稍後再試。');
+  assert.throws(() => core.submissionReply({ error: { text: '請稍後再試。' } }), /請稍後再試/);
+  assert.equal(core.submissionResponseInfo({ error: { html: '<input value="DO_NOT_INCLUDE">' } }).errorKind, 'html');
+  assert.ok(!JSON.stringify(core.submissionResponseInfo({ error: { html: 'DO_NOT_INCLUDE' } })).includes('DO_NOT_INCLUDE'));
+  assert.equal(core.submissionResponseInfo({ success: true }).knownRejection, false);
+  assert.throws(() => core.submissionReply({ success: true }), /結果不確定/);
+});
 test('rejects results belonging to another submission or problem', () => {
   const data = { runId: 123, oj: 'UVA', probNum: '100', status: 'Accepted', processing: false };
   assert.throws(() => core.resultFromData(data, 124, 'UVA-100'), /編號不符/);

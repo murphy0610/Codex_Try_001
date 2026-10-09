@@ -53,6 +53,8 @@ async function setup(options = {}) {
         status: queries === 1 ? 'Judging' : options.verdict || 'Accepted', processing: queries === 1 }) });
     }
     let body = options.noLanguages ? fixture.replace('GNU C++17', 'Java 17') : fixture;
+    if (options.formError) body = body.replace('<div id="submitModal" hidden>', '<div id="submitModal" hidden><div id="submit-alert" hidden></div>')
+      .replace('xhr.send(new URLSearchParams', `xhr.onload = () => { const alert = document.getElementById('submit-alert'); alert.textContent = ${JSON.stringify(options.formError)}; alert.hidden = false; };\n  xhr.send(new URLSearchParams`);
     if (options.editorNormalizes) body = body.replace('getValue: () => code', 'getValue: () => code.replace(/\\r\\n?/g, "\\n")');
     if (options.editorReturnsCrLf) body = body.replace('getValue: () => code', 'getValue: () => code.replace(/\\r\\n?|\\n/g, "\\r\\n")');
     if (options.corruptEditor) body = body.replace('code = value;', 'code = value.replace("std::cout << 7", "std::cout << 8");');
@@ -116,6 +118,52 @@ test('editor removal of trailing whitespace is a real mismatch and is never igno
   try {
     await assert.rejects(client.submitOnce(env.page, { ...payload, source: payload.source + '\t\r\n' }), /填入程式不符/);
     assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('duplicate code saves the structured reason and native form message before reporting rejection, without retrying', async () => {
+  const env = await setup({ reply: { error: { i18nKey: 'submit.error.duplicate_code', i18nArgs: { token: 'DO_NOT_INCLUDE' } }, token: 'DO_NOT_INCLUDE' }, formError: '這份代碼之前已經提交過。' });
+  try {
+    let diagnostic;
+    await assert.rejects(client.submitOnce(env.page, { ...payload, onDiagnostic: async value => { diagnostic = value; } }), error => {
+      assert.equal(error.submissionRejected, true);
+      assert.match(error.message, /這份程式碼之前已經提交過/);
+      assert.match(error.message, /表單提示：這份代碼之前已經提交過/);
+      return true;
+    });
+    assert.equal(diagnostic.httpStatus, 200);
+    assert.equal(diagnostic.response.errorKey, 'submit.error.duplicate_code');
+    assert.equal(diagnostic.formError, '這份代碼之前已經提交過。');
+    assert.ok(!JSON.stringify(diagnostic).includes('DO_NOT_INCLUDE'));
+    assert.equal(env.submissions.length, 1);
+    assert.equal(env.queries(), 0);
+  } finally { await env.context.close(); }
+});
+test('a JSON response without an ID or rejection stays uncertain and saves only permitted metadata', async () => {
+  const env = await setup({ reply: { success: true, token: 'DO_NOT_INCLUDE', source: 'DO_NOT_INCLUDE' } });
+  try {
+    let diagnostic;
+    await assert.rejects(client.submitOnce(env.page, { ...payload, onDiagnostic: async value => { diagnostic = value; } }), error => {
+      assert.equal(error.submissionRejected, false);
+      assert.match(error.message, /結果不確定/);
+      return true;
+    });
+    assert.deepEqual(diagnostic.response.fields, ['success']);
+    assert.equal(diagnostic.formError, null);
+    assert.ok(!JSON.stringify(diagnostic).includes('DO_NOT_INCLUDE'));
+    assert.equal(env.submissions.length, 1);
+  } finally { await env.context.close(); }
+});
+test('an HTTP server failure with an error object is not proof of rejection and never retries', async () => {
+  const env = await setup({ httpStatus: 503, reply: { error: { text: 'Service unavailable' } } });
+  try {
+    let diagnostic;
+    await assert.rejects(client.submitOnce(env.page, { ...payload, onDiagnostic: async value => { diagnostic = value; } }), error => {
+      assert.equal(error.submissionRejected, false);
+      assert.match(error.message, /HTTP 503/);
+      return true;
+    });
+    assert.equal(diagnostic.httpStatus, 503);
+    assert.equal(env.submissions.length, 1);
   } finally { await env.context.close(); }
 });
 test('WA is returned as final WA', async () => {

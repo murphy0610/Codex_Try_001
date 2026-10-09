@@ -102,6 +102,7 @@ async function main() {
     if (!args.record) throw new Error('請指定 --record 判題紀錄 JSON。');
     const recordPath = path.resolve(args.record);
     let record = JSON.parse(await fs.readFile(recordPath, 'utf8'));
+    if (record.runId == null) throw new Error(`這份紀錄沒有提交編號（狀態：${record.state || 'unknown'}），不能用 query 查詢判定。請查看紀錄中的 submissionDiagnostic 或網站表單提示；不要自動重送。`);
     core.positiveId(record.runId); core.problemFromUrl(`https://vjudge.net/problem/${record.problem}`);
     await withBrowser(true, async page => {
       await page.goto('https://vjudge.net/', { waitUntil: 'domcontentloaded' }); await client.assertLoggedIn(page);
@@ -153,6 +154,9 @@ async function main() {
   try {
     await withBrowser(true, async page => {
       const submission = await client.submitOnce(page, { problem, source, languageQuery: args.language,
+        onDiagnostic: async submissionDiagnostic => {
+          record = { ...record, submissionDiagnostic }; await save(recordPath, record);
+        },
         beforeClick: async language => {
           standardForLanguage(language, standard);
           record = { ...record, language, state: 'submitting' }; await save(recordPath, record);
@@ -167,7 +171,8 @@ async function main() {
       if (!finalResult.final) { console.log('尚未得到最終判定；請用 query 查詢保存的紀錄，不要重新提交。'); process.exitCode = 2; }
     });
   } catch (error) {
-    record = { ...record, error: error.message, state: record.runId ? 'query-failed' : record.state === 'submitting' ? 'uncertain' : 'not-submitted' };
+    record = { ...record, error: error.message, state: record.runId ? 'query-failed' :
+      error.submissionRejected === true ? 'rejected' : record.state === 'submitting' ? 'uncertain' : 'not-submitted' };
     await save(recordPath, record); throw error;
   }
 }
