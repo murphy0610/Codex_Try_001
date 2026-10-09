@@ -28,7 +28,11 @@ async function withBrowser(headless, action) {
     const settings = { headless, timeout: 30000 };
     if (process.env.CPE_BROWSER_PATH) settings.executablePath = process.env.CPE_BROWSER_PATH;
     else settings.channel = process.platform === 'win32' ? 'msedge' : 'chrome';
+    console.log(`[助手] 正在開啟${headless ? '背景' : '登入'}瀏覽器（${settings.channel || 'CPE_BROWSER_PATH 指定的瀏覽器'}）。`);
     context = await chromium.launchPersistentContext(path.join(dataRoot, 'browser-profile'), settings);
+    context.setDefaultTimeout(15000);
+    context.setDefaultNavigationTimeout(30000);
+    console.log('[助手] 瀏覽器已啟動。');
     // Session cookies may expire on browser close; preserve them only on the user's machine.
     // Never print, export to Codex cloud, or put this file in the project checkout.
     const sessionFile = path.join(dataRoot, 'browser-session.json');
@@ -37,6 +41,7 @@ async function withBrowser(headless, action) {
       await context.addCookies(session.cookies.filter(cookie => ['vjudge.net', '.vjudge.net'].includes(cookie.domain)));
     } catch (error) { if (error.code !== 'ENOENT') throw new Error('本機登入資料無法載入；請由本機 Codex 檢查，勿上傳登入資料。'); }
     const page = context.pages()[0] || await context.newPage();
+    console.log('[助手] 本機登入資料準備完成；檔案存在不代表登入有效，接著由網站確認。');
     const result = await action(page);
     const state = await context.storageState();
     await fs.writeFile(sessionFile, JSON.stringify({ cookies: state.cookies.filter(cookie => ['vjudge.net', '.vjudge.net'].includes(cookie.domain)) }), { mode: 0o600 });
@@ -54,6 +59,19 @@ async function save(recordPath, data) {
 async function main() {
   const command = process.argv[2];
   const args = options(process.argv.slice(3));
+  console.log('[助手] 本機指令已啟動。');
+  if (command === 'doctor') {
+    console.log(`Node.js：${process.version}`);
+    console.log(`Playwright：${require('playwright-core/package.json').version}`);
+    console.log(`目前專案目錄：${process.cwd()}`);
+    console.log(`瀏覽器來源：${process.env.CPE_BROWSER_PATH ? 'CPE_BROWSER_PATH（不顯示內容）' : process.platform === 'win32' ? 'Edge' : 'Chrome'}`);
+    for (const [name, label] of [['browser-session.json', '登入資料檔'], ['browser.lock', '助手鎖定檔']]) {
+      try { await fs.access(path.join(dataRoot, name)); console.log(`${label}：存在`); }
+      catch (error) { if (error.code === 'ENOENT') console.log(`${label}：不存在`); else throw error; }
+    }
+    console.log('診斷完成。此指令不連線驗證登入、不讀取登入檔內容，也不提交解答。');
+    return;
+  }
   if (command === 'login') {
     await withBrowser(false, async page => {
       await page.goto('https://vjudge.net/', { waitUntil: 'domcontentloaded' });
@@ -85,12 +103,13 @@ async function main() {
     });
     return;
   }
-  if (!['languages', 'submit'].includes(command)) throw new Error('指令：login、languages --problem 題號、test --file 檔案、submit、query --record 紀錄。');
+  if (!['languages', 'submit'].includes(command)) throw new Error('指令：doctor、login、languages --problem 題號、test --file 檔案、submit、query --record 紀錄。');
   if (typeof args.problem !== 'string') throw new Error('請指定 --problem，例如 UVA-100。');
   const problem = core.problemFromUrl(`https://vjudge.net/problem/${args.problem}`);
   if (command === 'languages') {
     await withBrowser(true, async page => {
-      const form = await client.openForm(page, problem);
+      const form = await client.openForm(page, problem, { onProgress: message => console.log(`[助手] ${message}`) });
+      console.log(`${problem} 可用 C++ 語言：`);
       console.log(form.languages.map(item => item.label).join('\n'));
     });
     return;

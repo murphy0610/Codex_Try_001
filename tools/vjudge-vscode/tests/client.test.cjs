@@ -35,7 +35,12 @@ async function setup(options = {}) {
   let queries = 0;
   await page.route('https://vjudge.net/**', async route => {
     const request = route.request(), pathname = new URL(request.url()).pathname;
-    if (pathname === '/user/checkLogInStatus') return route.fulfill({ body: options.loggedOut ? '0' : '1' });
+    if (pathname === '/user/checkLogInStatus') {
+      if (options.loginDelay) await new Promise(resolve => setTimeout(resolve, options.loginDelay));
+      try { return await route.fulfill({ body: options.loginBody ?? (options.loggedOut ? '0' : '1') }); }
+      catch (error) { if (!page.isClosed()) throw error; }
+      return;
+    }
     if (pathname === '/problem/submit/UVA-100') {
       submissions.push(Object.fromEntries(new URLSearchParams(request.postData())));
       return route.fulfill({ status: options.httpStatus || 200, contentType: 'application/json', body: JSON.stringify(options.reply || { runId: 5678 }) });
@@ -45,7 +50,7 @@ async function setup(options = {}) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ runId: options.wrongId ? 999 : 5678, oj: 'UVA', probNum: '100',
         status: queries === 1 ? 'Judging' : options.verdict || 'Accepted', processing: queries === 1 }) });
     }
-    return route.fulfill({ contentType: 'text/html', body: fixture });
+    return route.fulfill({ contentType: 'text/html', body: options.noLanguages ? fixture.replace('GNU C++17', 'Java 17') : fixture });
   });
   return { context, page, submissions, queries: () => queries };
 }
@@ -102,5 +107,39 @@ test('polling exhaustion stays unfinished and does not resubmit', async () => {
     const { runId } = await client.submitOnce(env.page, payload);
     const result = await client.waitForResult(env.page, payload.problem, runId, { attempts: 1 });
     assert.equal(result.final, false); assert.equal(result.verdict, 'Judging'); assert.equal(env.submissions.length, 1);
+  } finally { await env.context.close(); }
+});
+test('login check rejects unexpected HTML rather than claiming valid or expired login', async () => {
+  const env = await setup({ loginBody: '<html>Verification required</html>' });
+  try {
+    await env.page.goto('https://vjudge.net/');
+    await assert.rejects(client.assertLoggedIn(env.page), /非預期格式/);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('login request has a bounded timeout and reports it without submitting', async () => {
+  const env = await setup({ loginDelay: 500 });
+  try {
+    await env.page.goto('https://vjudge.net/');
+    await assert.rejects(client.assertLoggedIn(env.page, { timeoutMs: 100 }), /登入檢查逾時/);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('empty C++ language list fails visibly rather than printing an empty successful result', async () => {
+  const env = await setup({ noLanguages: true });
+  try {
+    await assert.rejects(client.openForm(env.page, 'UVA-100', { formTimeout: 150 }), /未載入可用的 C\+\+ 語言/);
+    assert.equal(env.submissions.length, 0);
+  } finally { await env.context.close(); }
+});
+test('language query identifies successful login and completion through progress messages', async () => {
+  const env = await setup();
+  try {
+    const progress = [];
+    const form = await client.openForm(env.page, 'UVA-100', { onProgress: text => progress.push(text) });
+    assert.deepEqual(form.languages, [{ value: '5', label: 'GNU C++17' }]);
+    assert.ok(progress.some(text => text.includes('登入檢查通過')));
+    assert.ok(progress.some(text => text.includes('已取得 1 個')));
+    assert.equal(env.submissions.length, 0);
   } finally { await env.context.close(); }
 });

@@ -1,19 +1,31 @@
 const core = require('../vjudge-submit/core.js');
 
-async function assertLoggedIn(page) {
-  const loggedIn = await page.evaluate(async () => {
-    const response = await fetch('/user/checkLogInStatus', { method: 'POST', credentials: 'same-origin' });
-    if (!response.ok) return false;
-    const text = (await response.text()).trim();
-    return text === '1' || text === 'true';
-  });
-  if (!loggedIn) throw new Error('登入已失效或網站要求驗證。請從 VS Code 執行「登入 VJudge」，手動完成後再試。');
+async function assertLoggedIn(page, { timeoutMs = 15000 } = {}) {
+  const result = await page.evaluate(async timeout => {
+    try {
+      const response = await fetch('/user/checkLogInStatus', { method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(timeout) });
+      if (!response.ok) return { error: `登入檢查收到 HTTP ${response.status()}；尚未確認登入有效。` };
+      const text = (await response.text()).trim();
+      if (text === '1' || text === 'true') return { loggedIn: true };
+      if (text === '0' || text === 'false') return { loggedIn: false };
+      return { error: '登入檢查回傳非預期格式，可能是驗證頁或網站改版；尚未確認登入有效。' };
+    } catch (error) {
+      return { error: ['TimeoutError', 'AbortError'].includes(error.name)
+        ? '登入檢查逾時；請確認網路及網站驗證狀態，不要把此結果當成登入成功。'
+        : '登入檢查網路請求失敗；尚未確認登入有效。' };
+    }
+  }, timeoutMs);
+  if (result.error) throw new Error(result.error);
+  if (!result.loggedIn) throw new Error('登入已失效或網站要求驗證。請從 VS Code 執行「登入 VJudge」，手動完成後再試。');
 }
 
-async function openForm(page, problem) {
+async function openForm(page, problem, { onProgress = () => {}, formTimeout = 15000 } = {}) {
   const expected = core.problemFromUrl(`https://vjudge.net/problem/${problem}`);
-  await page.goto(`https://vjudge.net/problem/${expected}`, { waitUntil: 'domcontentloaded' });
+  onProgress(`正在開啟 ${expected} 題目頁。`);
+  await page.goto(`https://vjudge.net/problem/${expected}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  onProgress('正在檢查保存的登入是否有效。');
   await assertLoggedIn(page);
+  onProgress('登入檢查通過，正在讀取原生提交表單。');
   if (core.problemFromUrl(page.url()) !== expected) throw new Error('題目頁面不符。');
   const modal = page.locator('#submitModal.show');
   if (!await modal.count()) {
@@ -30,7 +42,13 @@ async function openForm(page, problem) {
       await button.click();
     }
   }
-  await modal.waitFor({ state: 'visible', timeout: 15000 });
+  await modal.waitFor({ state: 'visible', timeout: formTimeout });
+  try {
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#submitModal.show select[name=language]');
+      return [...(select?.options || [])].some(option => option.value && !option.disabled && /(c\+\+|g\+\+|clang\+\+)/i.test(option.textContent));
+    }, null, { timeout: formTimeout });
+  } catch { throw new Error('提交表單未載入可用的 C++ 語言選項；查詢失敗，未提交程式。'); }
   const info = await modal.evaluate(element => {
     const problem = element.querySelector('.problem-origin')?.textContent.replace(/\s/g, '');
     const languages = [...(element.querySelector('select[name=language]')?.options || [])]
@@ -39,6 +57,8 @@ async function openForm(page, problem) {
     return { problem, languages };
   });
   if (info.problem !== expected) throw new Error('原生提交表單的題號不符，已停止。');
+  if (!info.languages.length) throw new Error('沒有取得 C++ 語言清單；查詢失敗。');
+  onProgress(`已取得 ${info.languages.length} 個 C++ 語言選項。`);
   return { modal, ...info };
 }
 
