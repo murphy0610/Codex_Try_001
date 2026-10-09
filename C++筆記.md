@@ -64,6 +64,16 @@ int main() {
 
 參考：[GCC 標頭文件](https://gcc.gnu.org/onlinedocs/libstdc%2B%2B/manual/using_headers.html)、[VS Code C++ 設定](https://code.visualstudio.com/docs/cpp/customize-cpp-settings)。
 
+### 3. Run 與 Debug 的差別
+
+- **Run**：直接執行程式，查看輸出或輸入測試資料。
+- **Debug**：使用除錯器執行，可以設定斷點、逐行執行並查看變數值，幫助找出解題程式的錯誤。
+- 能正常 Run 不代表 Debug 設定也正確。GCC C++ 的編譯器是 `g++`，除錯器通常使用 GDB；編譯時加上 `-g`，才能保留供除錯器使用的資訊。
+- VS Code 的「Run Code」與 C/C++ 擴充套件的「Run C/C++ File／Debug C++ File」使用不同的設定，不能只靠其中一個成功就判斷另一個已設定完成。
+- 本專案的除錯設定名稱是 `CPE: g++ Run and Debug active file`。開啟並儲存目標 `.cpp` 後，選用此設定：`F5` 開始除錯，`Ctrl+F5` 執行但不啟用除錯功能。若要測試斷點，在程式碼行號左側點一下，再按 `F5`；可用 `F10` 逐行執行、`F5` 繼續。
+
+參考：[VS Code GCC／GDB 教學](https://code.visualstudio.com/docs/cpp/config-mingw)。
+
 ## 我的補充
 
 你可以在這裡或其他段落自由加入自己的筆記。
