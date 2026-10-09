@@ -110,6 +110,12 @@ cout << sum;
 - Windows 上，仍在執行的 `.exe` 可能無法被新的編譯結果覆寫。遇到 `cannot open output file ... Permission denied` 時，先確認舊程式是否仍在執行；用 `Shift+F5` 停止除錯，或在執行程式的終端機按 `Ctrl+C` 停止，再重新編譯。
 - 程式停在 `cin` 時可能只是等待輸入；目前的練習程式有輸入與排序，但尚未加入 `cout`，所以輸入完資料後不會顯示排序結果。
 
+#### 除錯啟動顯示 `enter program name ... does not exist`
+
+`launch.json` 的 `program` 指定要啟動的執行檔。若錯誤包含 `enter program name, for example ...`，表示該次啟動的設定仍含有範本占位文字，並不是在尋找真正的程式。
+
+本專案的設定使用 `${fileDirname}\\${fileBasenameNoExtension}.exe`，會依目前開啟的 `.cpp` 找到同資料夾、同檔名的 `.exe`。先取消錯誤視窗，按 `Ctrl+Shift+D` 開啟「Run and Debug」，在上方下拉選單選 `CPE: g++ Run and Debug active file`，再回到目標 `.cpp` 按 `F5`。若選單尚未顯示此設定，執行「Developer: Reload Window」後再選。
+
 ## 我的補充
 
 你可以在這裡或其他段落自由加入自己的筆記。
