@@ -61,6 +61,7 @@ int main() {
 - 編輯器的紅線與實際編譯結果要分別確認：本次程式使用 `g++` 已能成功編譯，並輸出 `Sort! Sort!! and Sort!!!`。
 - VS Code 的程式分析與實際編譯應使用一致的編譯器；本專案已統一指向 MSYS2 UCRT64 的 `g++`。
 - 若希望程式能在不同編譯器上使用，可以按需求引入標準標頭，例如本次只使用輸入輸出功能時，`#include <iostream>` 就足夠。
+- 紅線顯示的錯誤代碼也能幫助判斷來源：`C1083` 是 Microsoft C++ 的編譯錯誤，不是 GCC 的診斷。若目前 `g++` 檢查已通過，而 VS Code 仍顯示先前的 `C1083`，先在 VS Code 執行正確的 `g++` 編譯工作以更新 Problems，必要時重新載入視窗；不要僅因舊診斷仍顯示就修改標頭或關閉錯誤提示。
 
 參考：[GCC 標頭文件](https://gcc.gnu.org/onlinedocs/libstdc%2B%2B/manual/using_headers.html)、[VS Code C++ 設定](https://code.visualstudio.com/docs/cpp/customize-cpp-settings)。
 
